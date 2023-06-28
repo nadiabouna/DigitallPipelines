@@ -1,0 +1,29 @@
+{
+    "EnvironmentVariables": [
+      {
+        "SchemaName": "demo_env_name",
+        "Value": "Sample DEV Value"
+      },
+      {
+        "SchemaName": "demo_another_env_name",
+        "Value": "Another DEV Value"
+      }
+    ],
+    "ConnectionReferences": [
+      {
+        "LogicalName": "demo_sharepoint_conn_ref",
+        "ConnectionId": "[ID of connection to use]",
+        "ConnectorId": "/providers/Microsoft.PowerApps/apis/shared_sharepointonline"
+      },
+      {
+        "LogicalName": "demo_dataverse_conn_ref",
+        "ConnectionId": "acda9287-bfb1-4a60-92e6-d43e97525448",
+        "ConnectorId": "/providers/Microsoft.PowerApps/apis/shared_commondataserviceforapps"
+      },
+      {
+        "LogicalName": "demo_outlook_conn_ref",
+        "ConnectionId": "shared-office365-acda9287-bfb1-4a60-92e6-d43e97525448",
+        "ConnectorId": "/providers/Microsoft.PowerApps/apis/shared_office365"
+      }
+    ]
+  }

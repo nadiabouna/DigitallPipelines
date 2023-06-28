@@ -1,0 +1,34 @@
+# Tag current pipeline with one or multiple tags
+
+parameters:
+  # ----- Required parameters -----
+
+  # Tag list to apply to the current pipeline
+  - name: tags
+    displayName: Tags
+    type: object
+
+  # ----- Optional predefined parameters -----
+
+  # Option to overwrite display name of tagging tasks
+  - name: displayName
+    displayName: Overwrite display name of tagging tasks
+    type: string
+    default: Tag current pipeline
+
+  # Option to overwrite the condition for this task
+  - name: condition
+    displayName: Overwrite condition for task
+    type: string
+    default: succeeded()
+
+steps:
+  # Do this for each tag
+  - ${{ each tag in parameters.tags }}:
+    # Tag the current pipeline
+    - task: PowerShell@2
+      displayName: ${{ parameters.displayName }}
+      condition: ${{ parameters.condition }}
+      inputs:
+        targetType: inline
+        script: Write-Host "##vso[build.addbuildtag]${{ tag }}"

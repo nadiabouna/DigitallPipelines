@@ -1,0 +1,115 @@
+# Compare solution versions between source and target solutions
+#
+# Prerequisites:
+# - Solution list file of source solutions
+# - Solution list file of target solutions
+
+parameters:
+  # ----- Required parameters -----
+
+  # Solution unique name to compare versions for
+  - name: solution
+    displayName: Solution
+    type: string
+
+  # Path to solution list file of source solutions
+  - name: sourceSolutionsPath
+    displayName: Source solutions file path
+    type: string
+
+  # Path to solution list file of target solutions
+  - name: targetSolutionsPath
+    displayName: Target solutions file path
+    type: string
+
+  # ----- Optional predefined parameters -----
+
+  # Option to overwrite the condition for this task
+  - name: condition
+    displayName: Overwrite condition for task
+    type: string
+    default: succeeded()
+
+  # Overwrite task name
+  - name: taskName
+    displayName: Overwrite task name
+    type: string
+    default: ''
+
+steps:
+  # Check solution versions
+  - task: PowerShell@2
+    ${{ if ne(parameters.taskName, '') }}:
+      name: ${{ parameters.taskName }}
+    ${{ else }}:
+      name: compareSolutionVersions_${{ parameters.solution }}
+    displayName: '${{ parameters.solution }}: Check solution version'
+    condition: ${{ parameters.condition }}
+    inputs:
+      targetType: 'inline'
+      script: |
+        $SolutionUniqueName = "$env:SolutionUniqueName"
+        $SourceSolutionsPath = "$env:SourceSolutionsPath"
+        $TargetSolutionsPath = "$env:TargetSolutionsPath"
+
+        if ($env:Debug -eq $True) {
+          Write-Host "##[debug]SolutionUniqueName=$SolutionUniqueName"
+          Write-Host "##[debug]SourceSolutionsPath=$SourceSolutionsPath"
+          Write-Host "##[debug]TargetSolutionsPath=$TargetSolutionsPath"
+        }
+
+        Write-Host "##[debug]Parse source solution versions"
+        $SourceSolutionsJson = Get-Content -Path $SourceSolutionsPath -Raw
+        if ($env:Debug -eq $True) { Write-Host "##[debug]SourceSolutionsJson=$SourceSolutionsJson" }
+        $SourceSolutionVersions = $SourceSolutionsJson | ConvertFrom-Json
+
+        Write-Host "##[debug]Parse target solution versions"
+        $TargetSolutionsJson = Get-Content -Path $TargetSolutionsPath -Raw
+        if ($env:Debug -eq $True) { Write-Host "##[debug]TargetSolutionsJson=$TargetSolutionsJson" }
+        $TargetSolutionVersions = $TargetSolutionsJson | ConvertFrom-Json
+
+        Write-Host "##[debug]Get solution version to be imported"
+        $ImportSolution = $TargetSolutionVersions | Select-Object -ExpandProperty Results | Where-Object { $_.SolutionUniqueName -eq "$SolutionUniqueName" }
+        if ($ImportSolution) {
+          $TargetVersion = $ImportSolution | Select-Object -ExpandProperty VersionNumber
+        } else {
+          $TargetVersion = $null
+        }
+        Write-Host "##[debug]Import solution version: $TargetVersion"
+        Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_ImportVersion;isoutput=true]$TargetVersion"
+
+        Write-Host "##[debug]Get source solution version"
+        $SourceSolution = $SourceSolutionVersions | Select-Object -ExpandProperty Results | Where-Object { $_.SolutionUniqueName -eq "$SolutionUniqueName" }
+        if ($SourceSolution) {
+          $SourceVersion = $SourceSolution | Select-Object -ExpandProperty VersionNumber
+        } else {
+          $SourceVersion = $null
+        }
+        Write-Host "##[debug]Source solution version: $SourceVersion"
+        Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_SourceVersion;isoutput=true]$SourceVersion"
+
+        Write-Host "##[debug]Convert version numbers to type version"
+        $SourceVersion = if ("$SourceVersion" -eq "") { [System.Version]"0.0.0.0" } else { [System.Version]$SourceVersion }
+        $TargetVersion = if ("$TargetVersion" -eq "") { [System.Version]"0.0.0.0" } else { [System.Version]$TargetVersion }
+
+        Write-Host "##[debug]Source version number: $SourceVersion"
+        Write-Host "##[debug]Target version number: $TargetVersion"
+
+        $SolutionIsUpToDate = $TargetVersion -ge $SourceVersion
+        Write-Host "##[debug]Solution is up to date: $SolutionIsUpToDate"
+        Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_IsUpToDate;isoutput=true]$SolutionIsUpToDate"
+
+        # If solution target version does not exist do not import as holding
+        # If solution is patch do not import as holding
+        $IsPatch = "$SolutionUniqueName" -match "^[A-Za-z0-9_]*(Patch_[0-9a-f]{8})$"
+        $ImportAsHolding = !($TargetVersion -eq [System.Version]"0.0.0.0" -or $IsPatch)
+
+        Write-Host "##[debug]Is patch: $IsPatch"
+        Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_IsPatch;isoutput=true]$IsPatch"
+        Write-Host "##[debug]Import as holding: $ImportAsHolding"
+        Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_ImportAsHolding;isoutput=true]$ImportAsHolding"
+    env:
+      SolutionUniqueName: ${{ parameters.solution }}
+      SourceSolutionsPath: ${{ parameters.sourceSolutionsPath }}
+      TargetSolutionsPath: ${{ parameters.targetSolutionsPath }}
+      Debug: $(System.Debug)

@@ -1,0 +1,49 @@
+# Installs or upgrades the DIGITALL solution concept in the environment
+
+# No automated triggers
+trigger: none
+
+# Run once a month to check for updates and install them if available
+schedules:
+  - cron: "0 0 1 * *"
+    displayName: Monthly update
+    branches:
+      include:
+        - main
+    always: true
+
+resources:
+  repositories:
+    # Add a reference to the pipelinetemplates repository where all the templates are located
+    # No need to clone them, the templates can be referenced directly
+    - repository: pipelinetemplates
+      type: github
+      name: DIGITALLNature/DigitallPipelines
+      endpoint: DIGITALL Pipelines Service Connection
+
+      # By default the default branch is used. If this is not the same default between projects
+      # (for most it is main, but for some it still is master) or a different one should be
+      # used, the ref mus be set:
+      # ref: refs/heads/preview
+      # ref: refs/heads/master
+
+# By default use an ubuntu image
+pool:
+  vmImage: ubuntu-latest
+
+# Use default variable groups (see /docs/variable-groups.md) namely the variables:
+# - PowerPlatformUrl
+# - PowerPlatformServiceConnectionName
+variables:
+  - group: Power Platform Environment Development
+  - group: Power Platform Deployment Connection
+
+# Extends from pipeline template that upgrades solution concept
+extends:
+  template: azure-pipeline-templates/dgt-solution-concept/import-upgrade.yml@pipelinetemplates
+  parameters:
+    serviceConnection: $(PowerPlatformServiceConnectionName)
+    environment:
+      friendlyName: Development
+      uniqueName: dev
+      devOpsEnvironment: Power Platform Environment Development Solution Concept

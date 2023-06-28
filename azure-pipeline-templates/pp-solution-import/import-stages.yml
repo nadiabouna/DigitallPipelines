@@ -1,0 +1,148 @@
+# Deploy list of fixed solutions to given list of environments
+
+parameters:
+  # ----- Required parameters -----
+
+  # Solution list. Comma separated list that should be set at compile time
+  - name: solutionList
+    displayName: Comma separated list of solutions
+    type: string
+
+  # Solution list in reverse. Comma separated list that should be set at compile time
+  # This is used to rollback in the opposite order
+  - name: solutionListReverse
+    displayName: Comma separated list of solutions in rollback order
+    type: string
+
+  # List of environments to deploy to
+  # Friendly name will be used to find variable groups and environments
+  # Unique Name will be used to find config files (e.g. filename.myenvironment.json)
+  # Example:
+  #   - friendlyName: My Environment
+  #     uniqueName: myenvironment
+  #
+  # Optionally set variables for each environment. This will overwrite using the default
+  #   - friendlyName: My Environment
+  #     uniqueName: myenvironment
+  #     variables:
+  #       - group: Power Platform Environment My Environment
+  #
+  # Optionally set devOpsEnvironment for each environment. This will overwrite using the default
+  #   - friendlyName: My Environment
+  #     uniqueName: myenvironment
+  #     devOpsEnvironment: Power Platform Environment My Environment
+  - name: environments
+    displayName: Environments
+    type: object
+
+  # ----- Optional feature parameters -----
+
+  # Force import of solutions with same or lower version
+  - name: forceImport
+    displayName: Force import of solutions with same or lower version
+    type: boolean
+    default: false
+
+  # Name of triggering pipeline containing solution code and deployment settings artifact
+  - name: triggerPipeline
+    displayName: Name of triggering pipeline containing solution code and deployment settings artifact
+    type: string
+    default: ''
+
+  # Automatically roll back if import fails
+  - name: rollbackOnFailure
+    displayName: Automatically roll back if import fails
+    type: boolean
+    default: true
+
+stages:
+  # Prepare solutions in separate stage
+  - stage: prepare_solution_deployments
+    displayName: Prepare solution deployments
+
+    jobs:
+      # Prepare solutions for each stage in separate job
+      - ${{ each environment in parameters.environments }}:
+        # Prepare and publish solution artifact
+        - template: ../pp-solution-build/build-default-artifact.yml
+          parameters:
+            solutionList: ${{ parameters.solutionList }}
+            environment: ${{ environment }}
+            triggerPipeline: ${{ parameters.triggerPipeline }}
+
+        # Generate list of local solutions
+        - template: ../pp-solution-version/generate-local-solution-list-job.yml
+          parameters:
+            jobName: ${{ environment.uniqueName }}_GenerateLocalSolutionList
+            artifactName: ${{ environment.uniqueName }}_SolutionList_Local
+            triggerPipeline: ${{ parameters.triggerPipeline }}
+
+      # TODO: Add job for solution checker etc.
+
+  # Deploy solutions in separate stage for each environment
+  - ${{ each environment in parameters.environments }}:
+    - stage: deploy_${{ environment.uniqueName }}
+      displayName: Deploy ${{ environment.friendlyName }}
+
+      ${{ if ne(environment.dependsOn, '') }}:
+        dependsOn: ${{ environment.dependsOn }}
+
+      variables:
+        # If we have variables as parameter take them over default
+        - ${{ if ne(environment.variables, '') }}:
+          - ${{ environment.variables }}
+        - ${{ else }}:
+          - group: Power Platform Environment ${{ environment.friendlyName }}
+
+      jobs:
+        # Deploy solution to each environment in deployment job
+        - template: ../pp-solution-import/import-deployment.yml
+          parameters:
+            solutionList: ${{ parameters.solutionList }}
+            solutionListReverse: ${{ parameters.solutionListReverse }}
+            environment: ${{ environment }}
+            serviceConnection: ${{ environment.serviceConnection }}
+            ${{ if ne(environment.serviceConnectionType, '') }}:
+              serviceConnectionType: ${{ environment.serviceConnectionType }}
+            forceImport: ${{ parameters.forceImport }}
+            ${{ if ne(environment.devOpsEnvironment, '') }}:
+              devOpsEnvironment: ${{ environment.devOpsEnvironment }}
+            ${{ else }}:
+              devOpsEnvironment: Power Platform Environment ${{ environment.friendlyName }}
+            rollbackOnFailure: ${{ parameters.rollbackOnFailure }}
+
+        # Post deployment jobs
+        - job: ${{ environment.uniqueName }}_PostDeployment
+          displayName: Post deployment ${{ environment.friendlyName }}
+
+          dependsOn: deploy_${{  environment.uniqueName }}
+
+          steps:
+            # If we triggered from a pipeline use the artifact
+            - ${{ if and(ne(parameters.triggerPipeline, ''), eq(variables['Build.Reason'], 'ResourceTrigger')) }}:
+              # We can rely solely on artifacts no source required
+              - checkout: none
+
+              # Download deployment settings from artifact
+              - task: DownloadPipelineArtifact@2
+                displayName: Download solution code artifact
+                inputs:
+                  buildType: specific
+                  project: $(System.TeamProjectId)
+                  definition: ${{ parameters.triggerPipeline }}
+                  specificBuildWithTriggering: true
+                  artifactName:  Export_Deployment_Settings
+                  itemPattern: '**/'
+                  targetPath: $(Build.Repository.LocalPath)
+
+            # Prepare dgtp tooling
+            - template: ../dgtp/install.yml
+            - template: ../xrm-connection/build-connectionstring-from-service-connection.yml@pipelinetemplates
+              parameters:
+                outputVariableName: dgtp:xrm:connection
+                serviceConnection: ${{ environment.serviceConnection }}
+                ${{ if ne(environment.serviceConnectionType, '') }}:
+                  serviceConnectionType: ${{ environment.serviceConnectionType }}
+
+            # Update flow states
+            - template: ../dgtp-maintenance/set-workflow-state.yml

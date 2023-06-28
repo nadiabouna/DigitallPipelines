@@ -1,0 +1,134 @@
+parameters:
+  # ----- Required parameters -----
+
+  # Service connection to the target environment
+  - name: serviceConnection
+    displayName: Service connection
+    type: string
+
+  # Name of devops environment used for approvals and checks
+  - name: devOpsEnvironment
+    displayName: DevOps environment
+    type: string
+
+  # ----- Optional feature parameters -----
+
+  # Make backup of configuration data in target environment
+  - name: backup
+    displayName: Make a backup before importing
+    type: boolean
+    default: true
+
+  # Schema file for backup
+  - name: schemaFile
+    displayName: Schema file
+    type: string
+    default: ""
+
+  # ------ Optional predefined parameters -----
+
+  # Type of service connection
+  - name: serviceConnectionType
+    displayName: Service connection type
+    type: string
+    values:
+      - PowerPlatformSPN
+      - PowerPlatformEnvironment
+    default: PowerPlatformSPN
+
+  # Name of output file
+  - name: backupDataFile
+    displayName: Backup data file or folder
+    type: string
+    default: $(Build.ArtifactStagingDirectory)/data.zip
+
+  # Name of environment used to identify artifacts
+  - name: environmentUniqueName
+    displayName: Environment unique name
+    type: string
+    default: default
+
+  # Name of artifact that holds configuration data
+  - name: configurationArtifactName
+    displayName: Configuration data artifact
+    type: string
+    default: configuration-data
+
+  # Name of configuration file or folder (within configuration data artifact)
+  - name: dataFile
+    displayName: Data file or folder
+    type: string
+    default: data.zip
+
+jobs:
+  # Backup configuration data
+  - job: backup_config
+    displayName: Backup configuration data
+
+    condition: and(succeeded(), eq(${{ parameters.backup }}, true), ne('${{ parameters.schemaFile }}', ''))
+
+    steps:
+      # Install Power Platform CLI
+      - template: ../pac/install.yml
+        parameters:
+          addToPath: false
+
+      # Export configuration data
+      - task: PowerPlatformExportData@2
+        displayName: Export configuration data
+        inputs:
+          authenticationType: ${{ parameters.serviceConnectionType }}
+          ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+            PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+          ${{ else }}:
+            PowerPlatformSPN: ${{ parameters.serviceConnection }}
+          Environment: $(PowerPlatformUrl)
+          SchemaFile: ${{ parameters.schemaFile }}
+          DataFile: ${{ parameters.backupDataFile }}
+
+      # Publish data backup as artifact
+      - task: PublishPipelineArtifact@1
+        displayName: Publish data backup
+        inputs:
+          artifactName: ${{ parameters.environmentUniqueName }}-data-backup
+          targetPath: ${{ parameters.backupDataFile }}
+
+  # Deployment job for import
+  - deployment: deploy_config
+    displayName: Import Configuration Data
+
+    dependsOn: backup_config
+    condition: in(dependencies.backup_config.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')
+
+    environment: ${{ parameters.devOpsEnvironment }}
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            # Don't load all artifacts
+            - download: none
+
+            # Load data artifact
+            - task: DownloadPipelineArtifact@2
+              displayName: Download data artifact
+              inputs:
+                artifact: ${{ parameters.configurationArtifactName }}
+                path: $(Pipeline.Workspace)
+
+            # Install Power Platform CLI
+            - template: ../pac/install.yml
+              parameters:
+                addToPath: false
+
+            # Import data
+            - task: PowerPlatformImportData@2
+              displayName: Import data
+              inputs:
+                authenticationType: ${{ parameters.serviceConnectionType }}
+                ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+                  PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+                ${{ else }}:
+                  PowerPlatformSPN: ${{ parameters.serviceConnection }}
+                Environment: $(PowerPlatformUrl)
+                DataFile: $(Pipeline.Workspace)/${{ parameters.dataFile }}

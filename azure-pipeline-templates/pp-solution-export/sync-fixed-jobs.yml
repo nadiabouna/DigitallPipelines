@@ -1,0 +1,350 @@
+# Sync specified fixed list of solutions to the given git repository
+
+parameters:
+  # ----- Required parameters -----
+
+  # Solution list. Comma separated list that should be set at compile time
+  - name: solutionList
+    displayName: Comma separated list of solutions
+    type: string
+
+  # Name of service connection
+  - name: serviceConnection
+    displayName: Service connection
+    type: string
+
+  # ----- Optional feature parameters -----
+
+  # Only sync solutions with updated version numbers
+  - name: onlySyncUpdatedSolutions
+    displayName: Only sync solutions with updated version numbers
+    type: boolean
+    default: false
+
+  # Publish solutions before sync
+  - name: publish
+    displayName: Publish all customizations before sync
+    type: boolean
+    default: false
+
+  # Add custom pipeline tags
+  - name: customTags
+    displayName: Custom pipeline tags
+    type: object
+    default: ''
+
+  # ----- Optional predefined parameters -----
+
+  # Create deployment settings for each solution
+  - name: createSettings
+    displayName: Create deployment settings
+    type: boolean
+    default: true
+
+  # Path to the repository folder to sync to
+  - name: outputDirectory
+    displayName: Path to folder where solutions should be cloned to
+    type: string
+    default: "$(Build.Repository.LocalPath)/solutions"
+
+  # Branch to push changes to
+  - name: branch
+    displayName: Branch to track changes
+    type: string
+    default: $(Build.SourceBranch)
+
+  # Environment name to use for pipeline tags
+  - name: environmentName
+    displayName: Environment Name
+    type: string
+    default: Development
+
+  # Type of service connection
+  - name: serviceConnectionType
+    displayName: Service connection type
+    type: string
+    values:
+      - PowerPlatformSPN
+      - PowerPlatformEnvironment
+    default: PowerPlatformSPN
+
+  # Name of artifact containing solution code
+  - name: solutionCodeArtifactName
+    displayName: Name of artifact containing solution code
+    type: string
+    default: Export_Solutions_Code
+
+  # Name of artifact containing deployment settings
+  - name: deploymentSettingsArtifactName
+    displayName: Name of artifact containing deployment settings
+    type: string
+    default: Export_Deployment_Settings
+
+jobs:
+  # Publish customizations if requested
+  - template: ../pac-solution/publish-job.yml
+    parameters:
+      serviceConnection: ${{ parameters.serviceConnection }}
+      serviceConnectionType: ${{ parameters.serviceConnectionType }}
+      condition: and(succeeded(), eq('${{ parameters.publish }}', 'true'))
+      jobName: publishCustomizations
+
+  # Generate list of installed solutions
+  - template: ../pp-solution-version/generate-solution-lists-job.yml
+    parameters:
+      serviceConnection: ${{ parameters.serviceConnection }}
+      serviceConnectionType: ${{ parameters.serviceConnectionType }}
+      localJobName: generateLocalSolutionList
+      installedJobName: generateInstalledSolutionList
+      condition: and(succeeded(), eq('${{ parameters.onlySyncUpdatedSolutions }}', 'true'))
+
+  # Compare solution versions so entire import jobs could be skipped
+  - job: compareSolutionVersionsJob
+    displayName: Check solution versions
+    condition: and(succeeded(), eq('${{ parameters.onlySyncUpdatedSolutions }}', 'true'))
+    dependsOn:
+      - generateLocalSolutionList
+      - generateInstalledSolutionList
+    steps:
+      # No sources required
+      - checkout: none
+
+      # Load local solution versions
+      - task: DownloadPipelineArtifact@2
+        displayName: Download local solution info
+        inputs:
+          artifact: local-solution-list
+          path: $(Agent.TempDirectory)
+
+      # Load installed solution versions
+      - task: DownloadPipelineArtifact@2
+        displayName: Download installed solution info
+        inputs:
+          artifact: installed-solution-list
+          path: $(Agent.TempDirectory)
+
+      # Check solution versions per solution
+      - ${{ each solution in split(parameters.solutionList, ',') }}:
+        - template: ../pp-solution-version/compare-solution-version.yml
+          parameters:
+            solution: ${{ solution }}
+            sourceSolutionsPath: $(Agent.TempDirectory)/installed-solutions.json
+            targetSolutionsPath: $(Agent.TempDirectory)/local-solutions.json
+
+  # Export each solution in own job
+  - ${{ each solution in split(parameters.solutionList, ',') }}:
+    # Export solutions
+    - job: exportSolution_${{ solution }}
+      displayName: Export solution ${{ solution }}
+      dependsOn:
+        - publishCustomizations
+        - compareSolutionVersionsJob
+      condition: |
+        and(
+          in(dependencies.publishCustomizations.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'),
+          or(eq('${{ parameters.onlySyncUpdatedSolutions }}', 'false'), succeeded('compareSolutionVersionsJob')),
+          or(eq('${{ parameters.onlySyncUpdatedSolutions }}', 'false'), eq(dependencies.compareSolutionVersionsJob.outputs['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'], 'false'))
+        )
+      variables:
+        SolutionConfig_${{ solution }}_IsUpToDate: $[ dependencies.compareSolutionVersionsJob.outputs['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'] ]
+
+      steps:
+        # Install Power Platform CLI and create auth profile
+        - template: ../pac/install.yml
+        - template: ../pac-auth/create-from-service-connection.yml
+          parameters:
+            serviceConnection: ${{ parameters.serviceConnection }}
+            serviceConnectionType: ${{ parameters.serviceConnectionType }}
+
+        # Check if solution folder already exists (assuming if it does it is already cloned)
+        - template: ../pp-solution-export/determine-clone-sync.yml
+          parameters:
+            solutionsFolder: ${{ parameters.outputDirectory }}
+            solutionUniqueName: ${{ solution }}
+
+        # Clone solution
+        - template: ../pac-solution/clone.yml
+          parameters:
+            solutionUniqueName: ${{ solution }}
+            condition: and(succeeded(), eq(variables['SolutionConfig_${{ solution }}_CloneNeeded'], 'true'))
+
+        # Sync solution
+        - template: ../pac-solution/sync.yml
+          parameters:
+            solutionUniqueName: ${{ solution }}
+            outputDirectory: ${{ parameters.outputDirectory }}
+
+            # No sync if solution needs clone
+            # Sync if solution version has changed
+            # Sync if we force sync on same versions
+            condition: |
+              and(
+                succeeded(),
+                ne(variables['SolutionConfig_${{ solution }}_CloneNeeded'], 'true'),
+                or(
+                  ne(variables['SolutionConfig_${{ solution }}_IsUpToDate'], 'true'),
+                  ne('${{ parameters.onlySyncUpdatedSolutions }}', 'true')
+                )
+              )
+
+        # Generate deployment settings
+        - template: ../pac-solution/create-settings.yml
+          parameters:
+            solutionUniqueName: ${{ solution }}
+            outputDirectory: ${{ parameters.outputDirectory }}
+
+            # Generate if solution needs clone
+            # Generate if solution version has changed
+            # Generate if we force sync on same versions
+            condition: |
+              and(
+                succeeded(),
+                or(
+                  eq(variables['SolutionConfig_${{ solution }}_CloneNeeded'], 'true'),
+                  ne(variables['SolutionConfig_${{ solution }}_IsUpToDate'], 'true'),
+                  ne(${{ parameters.onlySyncUpdatedSolutions }}, 'true')
+                )
+              )
+
+        # Publish solution as artifact
+        - task: PublishPipelineArtifact@1
+          displayName: Publish solution artifact
+          inputs:
+            artifactName: Export_Solution_${{ solution }}
+            targetPath: ${{ parameters.outputDirectory }}/${{ solution }}
+
+  # Combine all solution jobs
+  - job: trackSolutions
+    displayName: Combine solutions
+    dependsOn:
+      - compareSolutionVersionsJob
+      # Depends on all exportSolution jobs
+      - ${{ each solution in split(parameters.solutionList, ',') }}:
+        - exportSolution_${{ solution }}
+
+    # Only run if all exportSolution did not fail
+    condition: not(failed(${{ format('''exportSolution_{0}''', join(''', ''exportSolution_', split(parameters.solutionList, ','))) }}))
+
+    variables:
+      # Create variable for each solution
+      ${{ each solution in split(parameters.solutionList, ',') }}:
+        SolutionConfig_${{ solution }}_IsUpToDate: $[ dependencies.compareSolutionVersionsJob.outputs['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'] ]
+
+    steps:
+      # Clone self with credentials
+      - checkout: self
+        persistCredentials: true
+        clean: true
+
+      # Download all artifacts to temp folder
+      - task: DownloadPipelineArtifact@2
+        displayName: Download solution artifacts
+        inputs:
+          targetPath: $(Agent.TempDirectory)/solutionArtifacts
+
+      # Configure git
+      - template: ../git/configure.yml
+
+      # Go through solution artifacts one at a time
+      - ${{ each solution in split(parameters.solutionList, ',') }}:
+        # Copy solution files to output folder
+        - task: CopyFiles@2
+          displayName: '${{ solution }}: Copy files'
+          condition: and(succeeded(), or(eq('${{ parameters.onlySyncUpdatedSolutions }}', 'false'), eq(variables.SolutionConfig_${{ solution }}_IsUpToDate, 'false')))
+          inputs:
+            SourceFolder: $(Agent.TempDirectory)/solutionArtifacts/Export_Solution_${{ solution }}
+            TargetFolder: ${{ parameters.outputDirectory }}/${{ solution }}
+            CleanTargetFolder: true
+
+        # Stage changes
+        - template: ../git/stage.yml
+          parameters:
+            path: ${{ parameters.outputDirectory }}/${{ solution }}
+            condition: and(succeeded(), or(eq('${{ parameters.onlySyncUpdatedSolutions }}', 'false'), eq(variables.SolutionConfig_${{ solution }}_IsUpToDate, 'false')))
+
+        # Get solution version if we have changes for tags
+        - template: ../pp-solution-version/extract-version-from-solution-xml.yml
+          parameters:
+            filePath: ${{ parameters.outputDirectory }}/${{ solution }}/src/Other/Solution.xml
+            extractLocalVersionTaskName: ${{ solution }}GetVersion
+            condition: and(succeeded(), eq(variables.uncommittedChanges, 'true'))
+
+        # Tag pipeline with solution and version if we have changes
+        - task: PowerShell@2
+          condition: and(succeeded(), eq(variables.uncommittedChanges, 'true'))
+          displayName: '${{ solution }}: Tag pipeline'
+          inputs:
+            targetType: inline
+            script: |
+              Write-Host "##vso[build.addbuildtag]Solution_${{ solution }}_$(${{ solution }}GetVersion.SolutionVersion)"
+              Write-Host "##vso[build.addbuildtag]Solution_${{ solution }}"
+
+        # Commit changes if we have any
+        - template: ../git/commit.yml
+          parameters:
+            path: ${{ parameters.outputDirectory }}/${{ solution }}
+            commitMessage: 'Sync ${{ solution }} with version $(${{ solution }}GetVersion.SolutionVersion)'
+            gitTag: ${{ solution }}_$(${{ solution }}GetVersion.SolutionVersion)_$(Build.BuildNumber)
+            gitTagMessage: 'Sync ${{ solution }} with version $(${{ solution }}GetVersion.SolutionVersion)'
+
+      # Tag latest commit with build version number
+      - task: PowerShell@2
+        condition: and(succeeded(), eq(variables.localChanges, 'true'))
+        displayName: 'Git: Tag build number'
+        inputs:
+          targetType: inline
+          workingDirectory: ${{ parameters.outputDirectory }}
+          script: |
+            $lastCommit = git rev-parse HEAD
+
+            Write-Host "##[debug]Last commit: $lastCommit"
+
+            $existingTags = $(git tag -l "$(Build.BuildNumber)" | Measure-Object)
+            if ($existingTags.Count -gt 0) {
+              Write-Host "##vso[task.logissue type=warning]Tag $(Build.BuildNumber) already exists"
+            } else {
+              Write-Host "##[debug]Tag with: $(Build.BuildNumber)"
+              git tag -a $(Build.BuildNumber) -m "Push for build $(Build.BuildNumber)"
+            }
+
+      # Publish artifact with solution code
+      - task: PublishPipelineArtifact@1
+        displayName: Publish solution code artifact
+        inputs:
+          artifactName: ${{ parameters.solutionCodeArtifactName }}
+          targetPath: ${{ parameters.outputDirectory }}
+
+      # Publish artifact with deployment settings
+      - task: PublishPipelineArtifact@1
+        displayName: Publish deployment settings artifact
+        inputs:
+          artifactName: ${{ parameters.deploymentSettingsArtifactName }}
+          targetPath: ${{ parameters.outputDirectory }}/../deployment-settings
+
+      # Push all changes
+      - template: ../git/push.yml
+        parameters:
+          path: ${{ parameters.outputDirectory }}
+          branch: ${{ parameters.branch }}
+
+      # Add pipeline tags
+      - template: ../az-pipeline/add-build-tags.yml
+        parameters:
+          displayName: Add export solution tags
+          tags:
+            - Environment_${{ parameters.environmentName }}
+
+      # Add pipeline tag for changes
+      - template: ../az-pipeline/add-build-tags.yml
+        parameters:
+          displayName: Add pipeline changes tag
+          condition: and(succeeded(), eq(variables.localChanges, 'true'))
+          tags:
+            - Changes
+
+      # Add custom tags (could be used to trigger follow up pipelines)
+      - ${{ if ne(parameters.customTags, '') }}:
+        - template: ../az-pipeline/add-build-tags.yml
+          parameters:
+            displayName: Add custom pipeline tags
+            tags:  ${{ parameters.customTags }}

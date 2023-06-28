@@ -1,0 +1,83 @@
+# Download website (portal or power page) to the current repository
+
+parameters:
+  # ----- Required parameters -----
+
+  # Service connection to the target environment
+  - name: serviceConnection
+    displayName: Service connection to power platform
+    type: string
+
+  # Id of website
+  - name: webSiteId
+    displayName: Website ID to download
+    type: string
+
+  # ----- Optional predefined parameters -----
+
+  # Branch to track changes to
+  - name: branch
+    displayName: Branch to sync data to
+    type: string
+    default: $(Build.SourceBranch)
+
+  # Foldername to download portal towards
+  - name: folderPath
+    displayName: Folder to download portal content
+    type: string
+    default: $(Build.Repository.LocalPath)
+
+  # Overwrite existing files
+  - name: overwrite
+    displayName: Overwrite existing files
+    type: boolean
+    default: true
+
+  # Type of service connection
+  - name: serviceConnectionType
+    displayName: Service connection type
+    type: string
+    values:
+      - PowerPlatformSPN
+      - PowerPlatformEnvironment
+    default: PowerPlatformSPN
+
+steps:
+  # Checkout with credentials
+  - checkout: self
+    displayName: Checkout sources
+    clean: true
+    persistCredentials: true
+
+  # Install Power Platform CLI
+  - template: ../pac/install.yml
+    parameters:
+      addToPath: false
+
+  # Download website content
+  - task: PowerPlatformDownloadPaportal@2
+    displayName: Download portal
+    inputs:
+      authenticationType: ${{ parameters.serviceConnectionType }}
+      ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+        PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+      ${{ else }}:
+        PowerPlatformSPN: ${{ parameters.serviceConnection }}
+      DownloadPath: ${{ parameters.folderPath }}
+      WebsiteId: ${{ parameters.webSiteId }}
+      Overwrite: ${{ parameters.overwrite }}
+      Environment: $(PowerPlatformUrl)
+
+  # Stage, commit and push changes
+  - template: ../git/quick-commit-push.yml
+    parameters:
+      commitMessage: "Automated portal backup"
+      branch: ${{ parameters.branch }}
+
+  # Add pipeline tag for changes
+  - template: ../az-pipeline/add-build-tags.yml
+    parameters:
+      displayName: Add pipeline changes tag
+      condition: and(succeeded(), eq(variables.LocalChanges, 'true'))
+      tags:
+        - Changes

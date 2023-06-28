@@ -1,0 +1,77 @@
+# Export solution from solution configuration to current repository
+# Runs on a nightly schedule but scheduled after solution configuration was updated
+
+# No automated trigger and also no schedule since a pipeline trigger is used
+trigger: none
+
+resources:
+  repositories:
+    # Add a reference to the pipelinetemplates repository where all the templates are located
+    # No need to clone them, the templates can be referenced directly
+    - repository: pipelinetemplates
+      type: github
+      name: DIGITALLNature/DigitallPipelines
+      endpoint: DIGITALL Pipelines Service Connection # TODO: Replace with your endpoint connection name
+      ref: refs/heads/feature/chaining # ! Replace for sample
+
+      # By default the default branch is used. If this is not the same default between projects
+      # (for most it is main, but for some it still is master) or a different one should be
+      # used, the ref mus be set:
+      # ref: refs/heads/preview
+      # ref: refs/heads/master
+
+  pipelines:
+    # Add a reference to the pipeline updating the solution configuration
+    # Runs whenever the update solution configuration ran
+    # > This requires the update solution configuration to be configured with matching name and tags
+    - pipeline: update-solution-configuration
+      source: Update solution configuration # TODO: Replace with your pipeline name
+      trigger:
+        tags: # TODO: Replace with your tag names
+          - Environment_Development
+          - Trigger_Export
+
+# By default use an ubuntu image
+pool:
+  vmImage: ubuntu-latest
+
+parameters:
+  # If set to true before exporting anything a publish all customization will be performed
+  # Usually this takes a while and the chance of existing customizations being done but not published is low
+  - name: publish
+    displayName: Publish changes before exporting
+    type: boolean
+    default: false
+
+  # If set to true this will check the installed and already exported solution versions and only export those with a newer version
+  # Mainly solution versions are increased whenever something is ready to transport, for a simple backup of customizations
+  #   we should task all versions
+  - name: onlySyncUpdatedSolutions
+    displayName: Only sync solutions with newer version
+    type: boolean
+    default: false
+
+  # If set to true will trigger the release pipeline after exporting the solutions
+  # > This requires the release pipeline to be configured with matching name and tags
+  - name: triggerRelease
+    displayName: Trigger release pipeline
+    type: boolean
+    default: false
+
+# Use existing variable groups and templates
+variables:
+  - group: Power Platform Environment Development # TODO: Replace with your variable group name
+  - template: ../deployment-settings/solution-configuration/solution-configuration.yml # TODO: Replace with your solution configuration
+
+# Extend from pipeline template that generates the solution configuration
+extends:
+  template: azure-pipeline-templates/pp-solution-export/sync-fixed-jobs.yml@pipelinetemplates
+  parameters:
+    serviceConnection: Power Platform Service Connection Development # TODO: Replace with your service connection name
+    publish: ${{ parameters.publish }}
+    onlySyncUpdatedSolutions: ${{ parameters.onlySyncUpdatedSolutions }}
+    solutionList: ${{ variables.SolutionConfigList }}
+    customTags:
+      - Environment_Development # TODO: Replace with your custom tags
+      - ${{ if eq(parameters.triggerRelease, 'true') }}:
+          - Trigger_Release

@@ -1,0 +1,51 @@
+# Download managed solution for solution concept and publish as artifact
+
+parameters:
+  # ----- Optional predefined parameters -----
+
+  # Override the job name
+  - name: jobName
+    displayName: Job Name
+    type: string
+    default: downloadSolutionConcept
+
+  # Url to use to load solution concept managed solution latest version
+  - name: downloadUrl
+    displayName: Download Url
+    type: string
+    default: 'https://github.com/DIGITALLNature/DigitallSolutions/releases/latest/download/DigitallSolutions.zip'
+
+  # Name of the downloaded managed solution
+  - name: solutionConceptFileName
+    displayName: Solution Details File Name
+    type: string
+    default: DigitallSolutions.zip
+
+  # Artifact name to publish as
+  - name: artifactName
+    displayName: Artifact Name
+    type: string
+    default: solution-concept
+
+jobs:
+  - job: ${{ parameters.jobName }}
+    displayName: Download solution
+
+    steps:
+      # No sources required
+      - checkout: none
+
+      # Download from devops url
+      - task: PowerShell@2
+        displayName: Download solution concept
+        inputs:
+          targetType: 'inline'
+          script: |
+            Invoke-WebRequest ${{ parameters.downloadUrl }} -OutFile "$(Build.ArtifactStagingDirectory)/${{ parameters.solutionConceptFileName }}"
+
+      # Publish the downloaded solution as artifact
+      - task: PublishPipelineArtifact@1
+        displayName: Publish solution concept solution
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)
+          artifactName: ${{ parameters.artifactName }}

@@ -1,0 +1,108 @@
+# Create a new pac auth profile from existing credentials
+# Follows same principle as ../xrm-connection/** on how arguments can be provided
+#
+# Prerequisites:
+# - Powerapps CLI installed (e.g. ../pac/install*.yml)
+
+parameters:
+  # ----- Required parameters (might be set from env variable) -----
+  
+  # Url of the power platform environment to use
+  - name: url
+    displayName: Resource URL to connect to
+    type: string
+    default: ''
+
+  # ----- Required parameters (depending on authentication) -----
+
+  # Required depending on used auth type
+  - name: username
+    displayName: Username to authenticate with
+    type: string
+    default: ''
+  - name: password
+    displayName: Password to authenticate with
+    type: string
+    default: ''
+  - name: applicationId
+    displayName: Application ID to authenticate with
+    type: string
+    default: ''
+  - name: clientSecret
+    displayName: Client secret to authenticate with
+    type: string
+    default: ''
+  - name: tenant
+    displayName: Tenant ID if using app id and client secret
+    type: string
+    default: ''
+
+  # ----- Optional feature parameters -----
+
+  # If set to true does not take values from global values if available
+  - name: ignoreEnvs
+    displayName: Ignore environment variables if any matching are found
+    type: boolean
+    default: false
+
+  # ----- Optional parameters (directly passed to 'pac auth create') -----
+  - name: name
+    displayName: The name to give to this auth profile, maximum 12 characters
+    type: string
+    default: 'cli$(Build.BuildNumber)'
+  - name: cloud
+    displayName: Cloud instance to authenticate with.
+    values: 
+      - Public
+      - Tip1
+      - Tip2
+      - UsGov
+      - UsGovHigh
+      - UsGovDod
+    type: string
+    default: Public
+
+steps:
+  # Create auth profile with pac
+  - task: PowerShell@2
+    displayName: Authenticate with powerapps cli
+    inputs:
+      targetType: inline
+      script: |
+        $parameter = @(
+          "--name", "${{ parameters.name }}"
+        )
+
+        if ("${{ parameters.url }}" -ne "") { $parameter += "--url", "${{ parameters.url }}" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformUrl" -ne "`$`(PowerPlatformUrl)")) { $parameter += "--url", "$env:PowerPlatformUrl" }
+
+        if ("${{ parameters.url }}" -ne "") { $parameter += "--environment", "${{ parameters.url }}" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformUrl" -ne "`$`(PowerPlatformUrl)")) { $parameter += "--environment", "$env:PowerPlatformUrl" }
+
+        if ("${{ parameters.username }}" -ne "") { $parameter += "--username", "${{ parameters.username }}" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformUsername" -ne "`$`(PowerPlatformUsername)")) { $parameter += "--username", "$env:PowerPlatformUsername" }
+
+        if ("${{ parameters.password }}" -ne "") { $parameter += "--password", "${{ parameters.password }}" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformPassword" -ne "`$`(PowerPlatformPassword)")) { $parameter += "--password", "$env:PowerPlatformPassword" }
+
+        if ("${{ parameters.applicationId }}" -ne "") { $parameter += "--applicationId", "${{ parameters.applicationId }}" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformApplicationId" -ne "`$`(PowerPlatformApplicationId)")) { $parameter += "--applicationId", "$env:PowerPlatformApplicationId" }
+
+        if ("${{ parameters.clientSecret }}" -ne "") { $parameter += "--clientSecret", "${{ parameters.clientSecret }}" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformClientSecret" -ne "`$`(PowerPlatformClientSecret)")) { $parameter += "--clientSecret", "$env:PowerPlatformClientSecret" }
+
+        if ("${{ parameters.tenant }}" -ne "") { $parameter += "--tenant", "${{ parameters.tenant }}" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformTenant" -ne "`$`(PowerPlatformTenant)")) { $parameter += "--tenant", "$env:PowerPlatformTenant" }
+
+        if ("${{ parameters.cloud }}" -ne "") { $parameter += "--cloud", "${{ parameters.cloud }}" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformCloud" -ne "`$`(PowerPlatformCloud)")) { $parameter += "--cloud", "$env:PowerPlatformCloud" }
+
+        & pac auth create @parameter
+    env:
+      PowerPlatformUrl: $(PowerPlatformUrl)
+      PowerPlatformUsername: $(PowerPlatformUsername)
+      PowerPlatformPassword: $(PowerPlatformPassword)
+      PowerPlatformApplicationId: $(PowerPlatformApplicationId)
+      PowerPlatformClientSecret: $(PowerPlatformClientSecret)
+      PowerPlatformTenant: $(PowerPlatformTenant)
+      PowerPlatformCloud: $(PowerPlatformCloud)

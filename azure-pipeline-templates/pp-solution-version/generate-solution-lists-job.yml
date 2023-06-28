@@ -1,0 +1,121 @@
+# Generate solution lists for local and installed solutions
+#
+# Prerequisites:
+# - Solutions are extracted in local directory subfolder
+# - Service connection to the environment (power platform)
+# - Configured power platform url variable: PowerPlatformUrl
+
+parameters:
+  # ----- Required parameters -----
+
+  # Service connection to the environment
+  - name: serviceConnection
+    displayName: Service Connection
+    type: string
+
+  # ----- Optional predefined parameters (local solutions) -----
+
+  # Directory of the local solution folders
+  - name: localSolutionDirectory
+    displayName: Local solution directory
+    type: string
+    default: $(Build.Repository.LocalPath)/solutions
+
+  # Output directory for the local solution details file. Defaults to the agent's temp directory
+  - name: localOutputDirectory
+    displayName: Local output directory
+    type: string
+    default: $(Agent.TempDirectory)
+
+  # Name of the local solution details file. Defaults to "local-solutions.json"
+  - name: localSolutionDetailsFileName
+    displayName: Local solution details file name
+    type: string
+    default: local-solutions.json
+
+  # Relative path of the solution.xml to a solution folder
+  # This might differ whether clone/sync or unpack was used
+  - name: relativeSolutionXmlPath
+    displayName: Relative solution.xml path
+    type: string
+    default: src/Other/Solution.xml
+
+  # Override the job name for local solutions
+  - name: localJobName
+    displayName: Local job name
+    type: string
+    default: generateLocalSolutionList
+
+  # Override artifact name for local solution infos
+  - name: localArtifactName
+    displayName: Local artifact name
+    type: string
+    default: local-solution-list
+
+  # ----- Optional predefined parameters (installed solutions) -----
+
+  # Name of the installed solution details file. Defaults to "installed-solutions.json"
+  - name: installedSolutionDetailsFileName
+    displayName: Installed solution details file name
+    type: string
+    default: installed-solutions.json
+
+  # Output directory for the installed solution details file. Defaults to the agent's temp directory
+  - name: installedOutputDirectory
+    displayName: Installed output directory
+    type: string
+    default: $(Agent.TempDirectory)
+
+  # Override the job name for installed solutions
+  - name: installedJobName
+    displayName: Installed job name
+    type: string
+    default: generateInstalledSolutionList
+
+  # Override artifact name for installed solution infos
+  - name: installedArtifactName
+    displayName: Installed artifact name
+    type: string
+    default: installed-solution-list
+
+  # ----- Optional predefined parameters (general) -----
+
+  # Type of service connection
+  - name: serviceConnectionType
+    displayName: Service connection type
+    type: string
+    values:
+      - PowerPlatformSPN
+      - PowerPlatformEnvironment
+    default: PowerPlatformSPN
+
+  # ----- Optional general feature parameters -----
+
+  # Option to overwrite the condition for this task
+  - name: condition
+    displayName: Overwrite condition for task
+    type: string
+    default: succeeded()
+
+jobs:
+  # Generate local solutions
+  - template: ../pp-solution-version/generate-local-solution-list-job.yml
+    parameters:
+      solutionDirectory: ${{ parameters.localSolutionDirectory }}
+      outputDirectory: ${{ parameters.localOutputDirectory }}
+      solutionDetailsFileName: ${{ parameters.localSolutionDetailsFileName }}
+      relativeSolutionXmlPath: ${{ parameters.relativeSolutionXmlPath }}
+      jobName: ${{ parameters.localJobName }}
+      artifactName: ${{ parameters.localArtifactName }}
+      condition: ${{ parameters.condition }}
+
+  # Generate installed solutions
+  - template: ../pp-solution-version/generate-installed-solution-list-job.yml
+    parameters:
+      serviceConnection: ${{ parameters.serviceConnection }}
+      serviceConnectionType: ${{ parameters.serviceConnectionType }}
+      outputDirectory: ${{ parameters.installedOutputDirectory }}
+      solutionDetailsFileName: ${{ parameters.installedSolutionDetailsFileName }}
+      jobName: ${{ parameters.installedJobName }}
+      artifactName: ${{ parameters.installedArtifactName }}
+      condition: ${{ parameters.condition }}

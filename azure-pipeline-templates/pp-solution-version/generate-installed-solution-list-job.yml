@@ -1,0 +1,87 @@
+# Extract the list of solutions installed in the target environment
+#
+# Prerequisites:
+# - Service connection to the target environment (Power Platform)
+# - Configured power platform url variable: PowerPlatformUrl
+
+parameters:
+  # ----- Required parameters -----
+
+  # Service connection to the target environment
+  - name: serviceConnection
+    displayName: Service Connection
+    type: string
+
+  # ----- Optional predefined parameters -----
+
+  # Override the job name
+  - name: jobName
+    displayName: Job Name
+    type: string
+    default: generateInstalledSolutionList
+
+  # Output directory for the solution details file. Defaults to the agent's temp directory
+  - name: outputDirectory
+    displayName: Output Directory
+    type: string
+    default: $(Agent.TempDirectory)
+
+  # Name of the solution details file. Defaults to "installed-solutions.json"
+  - name: solutionDetailsFileName
+    displayName: Solution Details File Name
+    type: string
+    default: installed-solutions.json
+
+  # Override artifact name
+  - name: artifactName
+    displayName: Artifact Name
+    type: string
+    default: installed-solution-list
+
+  # Type of service connection
+  - name: serviceConnectionType
+    displayName: Service connection type
+    type: string
+    values:
+      - PowerPlatformSPN
+      - PowerPlatformEnvironment
+    default: PowerPlatformSPN
+
+  # ------ Optional general feature parameters ------
+
+  # Option to overwrite the condition for this task
+  - name: condition
+    displayName: Overwrite condition for task
+    type: string
+    default: succeeded()
+
+jobs:
+  - job: ${{ parameters.jobName }}
+    displayName: Generate installed solution list
+    condition: ${{ parameters.condition }}
+
+    steps:
+      # No sources required
+      - checkout: none
+
+      # Install powerapps cli
+      - template: ../pac/install.yml
+
+      # Authenticate manually by using service connection
+      - template: ../pac-auth/create-from-service-connection.yml
+        parameters:
+          serviceConnection: ${{ parameters.serviceConnection }}
+          serviceConnectionType: ${{ parameters.serviceConnectionType }}
+
+      # Generate solution list
+      - template: ../pp-solution-version/generate-installed-solution-list.yml
+        parameters:
+          outputDirectory: ${{ parameters.outputDirectory }}
+          solutionDetailsFileName: ${{ parameters.solutionDetailsFileName }}
+
+      # Publish solution list as artifact
+      - task: PublishPipelineArtifact@1
+        displayName: Publish installed solution list
+        inputs:
+          artifactName: ${{ parameters.artifactName }}
+          targetPath: ${{ parameters.outputDirectory }}/${{ parameters.solutionDetailsFileName }}

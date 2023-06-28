@@ -1,0 +1,72 @@
+# Create solution configuration from carrier information
+
+parameters:
+  # ----- Optional predefined parameters -----
+
+  # File path to write solution configuration to
+  - name: solutionConfigurationPath
+    displayName: Solution Configuration Path
+    type: string
+    default: '$(Build.Repository.LocalPath)/deployment-settings/solution-configuration/solution-configuration.yml'
+
+  # File name of the carrier information file
+  - name: carrierInformationFileName
+    displayName: Carrier Information File Name
+    type: string
+    default: $(Agent.TempDirectory)/carrier.json
+
+steps:
+  # Convert carrier information to solution configuration
+  - task: PowerShell@2
+    displayName: Create solution configuration
+    inputs:
+      targetType: inline
+      workingDirectory: $(Build.Repository.LocalPath)
+      script: |
+        $Debug = $env:Debug
+        $WorkingDirectory = $env:WorkingDirectory
+        $SolutionConfigurationPath = $env:SolutionConfigurationPath
+        $CarrierInformationFileName = $env:CarrierInformationFileName
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]SolutionConfigurationPath=$SolutionConfigurationPath"
+          Write-Host "##[debug]CarrierInformationFileName=$CarrierInformationFileName"
+          Write-Host "##[debug]WorkingDirectory=$WorkingDirectory"
+        }
+
+        # Read carrier information and sort by order
+        $CarrierInfos = Get-Content -Path "$CarrierInformationFileName" | ConvertFrom-Json | Sort-Object -Property order
+
+        $SolutionConfiguration = @(
+          "variables:"
+        )
+        $Solutions = @()
+        $ReverseSolutions = @()
+
+        foreach($Carrier in $CarrierInfos) {
+          $SolutionConfiguration += "  # $($Carrier.uniquename)"
+          $SolutionConfiguration += "  SolutionConfig_$($Carrier.uniquename)_UniqueName: $($Carrier.uniquename)"
+          $SolutionConfiguration += "  SolutionConfig_$($Carrier.uniquename)_ImportManaged: true"
+          $SolutionConfiguration += "  SolutionConfig_$($Carrier.uniquename)_ImportOrder: $($Carrier.order)"
+          $SolutionConfiguration += ""
+
+          $Solutions += "$($Carrier.uniquename)"
+          $ReverseSolutions = ,"$($Carrier.uniquename)" + $ReverseSolutions
+        }
+
+        $SolutionConfigList = $Solutions -join ","
+        $SolutionConfigListReverse = $ReverseSolutions -join ","
+
+        $SolutionConfiguration += "  SolutionConfigList: $SolutionConfigList"
+        $SolutionConfiguration += "  SolutionConfigListReverse: $SolutionConfigListReverse"
+
+        if (!(Test-Path -Path "$SolutionConfigurationPath")) {
+          New-Item -Path "$SolutionConfigurationPath" -ItemType Directory
+          Write-Host "##[debug]Created deployment settings directory"
+        }
+        $SolutionConfiguration | Out-File -FilePath "$SolutionConfigurationPath"
+    env:
+      Debug: $(System.Debug)
+      SolutionConfigurationPath: ${{ parameters.solutionConfigurationPath }}
+      CarrierInformationFileName: ${{ parameters.carrierInformationFileName }}
+      WorkingDirectory: $(Build.Repository.LocalPath)

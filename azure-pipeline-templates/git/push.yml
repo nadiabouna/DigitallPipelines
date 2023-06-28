@@ -1,0 +1,60 @@
+# Push a given repository to a remote (including tags)
+#
+# Prerequisites:
+# - Git must be configured for use (e.g. ../git/configure.yml)
+# - Pipeline build service needs GenericContribute permission on the repository
+# - Repository needs to be cloned with persistCredentials: true
+
+parameters:
+  # ----- Optional predefined parameters -----
+
+  # Path to git repository
+  - name: path
+    displayName: Path to git repository
+    type: string
+    default: '$(Build.Repository.LocalPath)'
+
+  # Branch to push
+  - name: branch
+    displayName: Branch to push
+    type: string
+    default: main
+  
+  # Remote name
+  - name: remoteName
+    displayName: Remote name
+    type: string
+    default: origin
+
+  # Option to overwrite the condition for this task
+  - name: condition
+    displayName: Overwrite condition for task
+    type: string
+    default: and(succeeded(), eq(variables.LocalChanges, 'true'))
+
+steps:
+  # Push changes
+  - task: PowerShell@2
+    condition: ${{ parameters.condition }}
+    displayName: 'Git: Push changes'
+    inputs:
+      targetType: inline
+      workingDirectory: ${{ parameters.path }}
+      script: |
+        $Debug = $env:Debug
+        $RemoteName = $env:RemoteName
+        $Branch = $env:Branch
+        $WorkingDirectory = $env:WorkingDirectory
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]RemoteName=$RemoteName"
+          Write-Host "##[debug]Branch=$Branch"
+          Write-Host "##[debug]WorkingDirectory=$WorkingDirectory"
+        }
+
+        git push "$RemoteName" "HEAD:$Branch" --follow-tags
+    env:
+      Debug: $(System.Debug)
+      RemoteName: ${{ parameters.remoteName }}
+      Branch: ${{ parameters.branch }}
+      WorkingDirectory: ${{ parameters.path }}

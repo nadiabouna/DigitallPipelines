@@ -1,0 +1,150 @@
+# Upload website (portal or power page) to the target environment
+
+parameters:
+  # ----- Required parameters -----
+
+  # Service connection to the target environment
+  - name: serviceConnection
+    displayName: Service connection to power platform
+    type: string
+
+  # Id of website
+  - name: webSiteId
+    displayName: Website ID to download
+    type: string
+
+  # Foldername that contains the portal content
+  - name: folderName
+    displayName: Name of folder that contains the portal content
+    type: string
+
+  # ----- Optional recommended parameters -----
+
+  # Deployment profile to use for import
+  - name: deploymentProfile
+    displayName: Deployment profile to use for import
+    type: string
+    default: default
+
+  # Name of devops environment used for approvals and checks
+  - name: devOpsEnvironment
+    displayName: DevOps Environment
+    type: string
+
+  # ----- Optional predefined parameters -----
+
+  # Make a backup before uploading
+  # Enables rollback job
+  - name: backup
+    displayName: Make a backup before uploading
+    type: boolean
+    default: true
+
+  # Foldername to download portal towards
+  - name: folderPath
+    displayName: Folder where portal folder is contained
+    type: string
+    default: $(Build.Repository.LocalPath)
+
+  # Type of service connection
+  - name: serviceConnectionType
+    displayName: Service connection type
+    type: string
+    values:
+      - PowerPlatformSPN
+      - PowerPlatformEnvironment
+    default: PowerPlatformSPN
+
+jobs:
+  # Backup portal as artifact
+  - job: backup_portal
+    displayName: Backup portal
+    condition: and(succeeded(), eq('${{ parameters.backup }}', 'true'))
+    steps:
+      # Install Power Platform CLI
+      - template: ../pac/install.yml
+        parameters:
+          addToPath: false
+
+      # Download website content
+      - task: PowerPlatformDownloadPaportal@2
+        displayName: Download portal
+        inputs:
+          authenticationType: ${{ parameters.serviceConnectionType }}
+          ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+            PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+          ${{ else }}:
+            PowerPlatformSPN: ${{ parameters.serviceConnection }}
+          DownloadPath: $(Build.ArtifactStagingDirectory)
+          WebsiteId: ${{ parameters.webSiteId }}
+          Overwrite: true
+          Environment: $(PowerPlatformUrl)
+
+      # Publish portal backup as artifact
+      - task: PublishPipelineArtifact@1
+        displayName: Publish portal backup as artifact
+        inputs:
+          artifactName: portal-backup
+          targetPath: $(Build.ArtifactStagingDirectory)
+
+  # Upload portal
+  - deployment: deploy_portal
+    displayName: Deploy portal
+
+    environment: ${{ parameters.devOpsEnvironment }}
+
+    dependsOn: backup_portal
+    condition: in(dependencies.backup_portal.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            # Don't load all artifacts
+            - download: none
+
+            # Checkout sources
+            - checkout: self
+
+            # Install Power Platform CLI
+            - template: ../pac/install.yml
+              parameters:
+                addToPath: false
+
+            # Upload portal
+            - task: PowerPlatformUploadPaportal@2
+              displayName: Upload portal
+              inputs:
+                authenticationType: ${{ parameters.serviceConnectionType }}
+                ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+                  PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+                ${{ else }}:
+                  PowerPlatformSPN: ${{ parameters.serviceConnection }}
+                UploadPath: ${{ parameters.folderPath }}/${{ parameters.folderName }}
+                DeploymentProfile: ${{ parameters.deploymentProfile }}
+                Environment: $(PowerPlatformUrl)
+
+        ${{ if eq(parameters.backup, 'true') }}:
+          on:
+            failure:
+              steps:
+                # Load backup artifact
+                - download: current
+                  artifact: portal-backup
+
+                # Install Power Platform CLI
+                - template: ../pac/install.yml
+                  parameters:
+                    addToPath: false
+
+                # Upload portal
+                - task: PowerPlatformUploadPaportal@2
+                  displayName: Upload portal
+                  inputs:
+                    authenticationType: ${{ parameters.serviceConnectionType }}
+                    ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+                      PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+                    ${{ else }}:
+                      PowerPlatformSPN: ${{ parameters.serviceConnection }}
+                    UploadPath: $(Pipeline.Workspace)/portal-backup/${{ parameters.folderName }}
+                    Environment: $(PowerPlatformUrl)

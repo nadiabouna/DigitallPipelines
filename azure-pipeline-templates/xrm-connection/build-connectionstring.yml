@@ -1,0 +1,223 @@
+# Create a connectionstring from individual settings
+#
+# There are two different ways to configure what will be part of the connection string
+#   1. Pass as explicit parameter
+#   2. Set as global variable (Any of the parameter names prefixed by PowerPlatform)
+#     - If no parameter is set will look for the variable except 'ignoreEnvs' is set to true
+#
+# If any of the values is not set in either source that argument won't be part of the connection string
+#
+# The resulting connectionstring will be made available as an environment variable and marked as secret
+# By default the name of the environment variable is 'PowerPlatformConnectionString' but this can be overridden by
+#   using the parameter outputVariableName.
+#
+# Take a look at the microsoft doc for the specific connection arguments available:
+# https://learn.microsoft.com/en-us/power-apps/developer/data-platform/xrm-tooling/use-connection-strings-xrm-tooling-connect
+
+parameters:
+  # ----- Optional feature parameters -----
+
+  # Name of environment variable to store connectionstring in it
+  - name: outputVariable
+    displayName: Name of output variable
+    type: string
+    default: PowerPlatformConnectionString
+
+  # If set to true does not take values from global values if available
+  - name: ignoreEnvs
+    displayName: Ignore environment variables if any matching are found
+    type: boolean
+    default: false
+
+  # ----- Optional predefined connection parameters -----
+  - name: loginPrompt
+    type: string
+    default: None
+  - name: requireNewInstance
+    type: string
+    default: true
+  - name: skipDiscovery
+    type: string
+    default: true
+
+  # ----- Optional empty connection parameters -----
+  - name: authType
+    type: string
+    default: ''
+  - name: serviceUri
+    type: string
+    default: ''
+  - name: url
+    type: string
+    default: ''
+  - name: server
+    type: string
+    default: ''
+  - name: userName
+    type: string
+    default: ''
+  - name: userId
+    type: string
+    default: ''
+  - name: user Id
+    type: string
+    default: ''
+  - name: password
+    type: string
+    default: ''
+  - name: homeRealmUri
+    type: string
+    default: ''
+  - name: authenticationType
+    type: string
+    default: ''
+  - name: clientId
+    type: string
+    default: ''
+  - name: appId
+    type: string
+    default: ''
+  - name: applicationId
+    type: string
+    default: ''
+  - name: clientSecret
+    type: string
+    default: ''
+  - name: secret
+    type: string
+    default: ''
+  - name: redirectUri
+    type: string
+    default: ''
+  - name: replyUrl
+    type: string
+    default: ''
+  - name: tokenCacheStorePath
+    type: string
+    default: ''
+  - name: storeName
+    type: string
+    default: ''
+  - name: certificateStoreName
+    type: string
+    default: ''
+  - name: thumbprint
+    type: string
+    default: ''
+  - name: certThumbprint
+    type: string
+    default: ''
+
+steps:
+  # Create connection string
+  # If parameter is empty checks if variable is set. Mapping an non existen variable as env to the powershell task
+  #   results in the literal of the variable expression be taken instead of an empty string. Therefore the conditions
+  #   will check for that.
+  # All values will be put in double quotes but otherwise no escaping measures will be taken.
+  - task: PowerShell@2
+    displayName: Build connection string
+    inputs:
+      targetType: 'inline'
+      script: |
+        $conPar = @()
+
+        if ("${{ parameters.authType }}" -ne "") { $conPar += "AuthType=""${{ parameters.authType }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformAuthType" -ne "`$`(PowerPlatformAuthType)")) { $conPar += "AuthType=""$env:PowerPlatformAuthType""" }
+
+        if ("${{ parameters.loginPrompt }}" -ne "") { $conPar += "LoginPrompt=""${{ parameters.loginPrompt }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformLoginPrompt" -ne "`$`(PowerPlatformLoginPrompt)")) { $conPar += "LoginPrompt=""$env:PowerPlatformLoginPrompt""" }
+
+        if ("${{ parameters.requireNewInstance }}" -ne "") { $conPar += "RequireNewInstance=""${{ parameters.requireNewInstance }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformRequireNewInstance" -ne "`$`(PowerPlatformRequireNewInstance)")) { $conPar += "RequireNewInstance=""$env:PowerPlatformRequireNewInstance""" }
+
+        if ("${{ parameters.skipDiscovery }}" -ne "") { $conPar += "SkipDiscovery=""${{ parameters.skipDiscovery }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformSkipDiscovery" -ne "`$`(PowerPlatformSkipDiscovery)")) { $conPar += "SkipDiscovery=""$env:PowerPlatformSkipDiscovery""" }
+
+        if ("${{ parameters.serviceUri }}" -ne "") { $conPar += "ServiceUri=""${{ parameters.serviceUri }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformServiceUri" -ne "`$`(PowerPlatformServiceUri)")) { $conPar += "ServiceUri=""$env:PowerPlatformServiceUri""" }
+
+        if ("${{ parameters.url }}" -ne "") { $conPar += "Url=""${{ parameters.url }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformUrl" -ne "`$`(PowerPlatformUrl)")) { $conPar += "Url=""$env:PowerPlatformUrl""" }
+
+        if ("${{ parameters.server }}" -ne "") { $conPar += "Server=""${{ parameters.server }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformServer" -ne "`$`(PowerPlatformServer)")) { $conPar += "Server=""$env:PowerPlatformServer""" }
+
+        if ("${{ parameters.userName }}" -ne "") { $conPar += "UserName=""${{ parameters.userName }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformUserName" -ne "`$`(PowerPlatformUserName)")) { $conPar += "UserName=""$env:PowerPlatformUserName""" }
+
+        if ("${{ parameters.userId }}" -ne "") { $conPar += "UserId=""${{ parameters.userId }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformUserId" -ne "`$`(PowerPlatformUserId)")) { $conPar += "UserId=""$env:PowerPlatformUserId""" }
+
+        if ("${{ parameters.password }}" -ne "") { $conPar += "Password=""${{ parameters.password }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformPassword" -ne "`$`(PowerPlatformPassword)")) { $conPar += "Password=""$env:PowerPlatformPassword""" }
+
+        if ("${{ parameters.homeRealmUri }}" -ne "") { $conPar += "HomeRealmUri=""${{ parameters.homeRealmUri }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformHomeRealmUri" -ne "`$`(PowerPlatformHomeRealmUri)")) { $conPar += "HomeRealmUri=""$env:PowerPlatformHomeRealmUri""" }
+
+        if ("${{ parameters.authenticationType }}" -ne "") { $conPar += "AuthenticationType=""${{ parameters.authenticationType }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformAuthenticationType" -ne "`$`(PowerPlatformAuthenticationType)")) { $conPar += "AuthenticationType=""$env:PowerPlatformAuthenticationType""" }
+
+        if ("${{ parameters.clientId }}" -ne "") { $conPar += "ClientId=""${{ parameters.clientId }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformClientId" -ne "`$`(PowerPlatformClientId)")) { $conPar += "ClientId=""$env:PowerPlatformClientId""" }
+
+        if ("${{ parameters.appId }}" -ne "") { $conPar += "AppId=""${{ parameters.appId }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformAppId" -ne "`$`(PowerPlatformAppId)")) { $conPar += "AppId=""$env:PowerPlatformAppId""" }
+
+        if ("${{ parameters.applicationId }}" -ne "") { $conPar += "ApplicationId=""${{ parameters.applicationId }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformApplicationId" -ne "`$`(PowerPlatformApplicationId)")) { $conPar += "ApplicationId=""$env:PowerPlatformApplicationId""" }
+
+        if ("${{ parameters.clientSecret }}" -ne "") { $conPar += "ClientSecret=""${{ parameters.clientSecret }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformClientSecret" -ne "`$`(PowerPlatformClientSecret)")) { $conPar += "ClientSecret=""$env:PowerPlatformClientSecret""" }
+
+        if ("${{ parameters.secret }}" -ne "") { $conPar += "Secret=""${{ parameters.secret }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformSecret" -ne "`$`(PowerPlatformSecret)")) { $conPar += "Secret=""$env:PowerPlatformSecret""" }
+
+        if ("${{ parameters.redirectUri }}" -ne "") { $conPar += "RedirectUri=""${{ parameters.redirectUri }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformRedirectUri" -ne "`$`(PowerPlatformRedirectUri)")) { $conPar += "RedirectUri=""$env:PowerPlatformRedirectUri""" }
+
+        if ("${{ parameters.replyUrl }}" -ne "") { $conPar += "ReplyUrl=""${{ parameters.replyUrl }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformReplyUrl" -ne "`$`(PowerPlatformReplyUrl)")) { $conPar += "ReplyUrl=""$env:PowerPlatformReplyUrl""" }
+
+        if ("${{ parameters.tokenCacheStorePath }}" -ne "") { $conPar += "TokenCacheStorePath=""${{ parameters.tokenCacheStorePath }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformTokenCacheStorePath" -ne "`$`(PowerPlatformTokenCacheStorePath)")) { $conPar += "TokenCacheStorePath=""$env:PowerPlatformTokenCacheStorePath""" }
+
+        if ("${{ parameters.storeName }}" -ne "") { $conPar += "StoreName=""${{ parameters.storeName }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformStoreName" -ne "`$`(PowerPlatformStoreName)")) { $conPar += "StoreName=""$env:PowerPlatformStoreName""" }
+
+        if ("${{ parameters.certificateStoreName }}" -ne "") { $conPar += "CertificateStoreName=""${{ parameters.certificateStoreName }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformCertificateStoreName" -ne "`$`(PowerPlatformCertificateStoreName)")) { $conPar += "CertificateStoreName=""$env:PowerPlatformCertificateStoreName""" }
+
+        if ("${{ parameters.thumbprint }}" -ne "") { $conPar += "Thumbprint=""${{ parameters.thumbprint }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformThumbprint" -ne "`$`(PowerPlatformThumbprint)")) { $conPar += "Thumbprint=""$env:PowerPlatformThumbprint""" }
+
+        if ("${{ parameters.certThumbprint }}" -ne "") { $conPar += "CertThumbprint=""${{ parameters.certThumbprint }}""" }
+        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformCertThumbprint" -ne "`$`(PowerPlatformCertThumbprint)")) { $conPar += "CertThumbprint=""$env:PowerPlatformCertThumbprint""" }
+
+        $tmpConString = $conPar -join ";"
+
+        Write-Host "##vso[task.setvariable variable=${{ parameters.outputVariable }};issecret=true;isreadonly=true]$tmpConString"
+    env:
+      PowerPlatformAuthType: $(PowerPlatformAuthType)
+      PowerPlatformLoginPrompt: $(PowerPlatformLoginPrompt)
+      PowerPlatformRequireNewInstance: $(PowerPlatformRequireNewInstance)
+      PowerPlatformSkipDiscovery: $(PowerPlatformSkipDiscovery)
+      PowerPlatformServiceUri: $(PowerPlatformServiceUri)
+      PowerPlatformUrl: $(PowerPlatformUrl)
+      PowerPlatformServer: $(PowerPlatformServer)
+      PowerPlatformUserName: $(PowerPlatformUserName)
+      PowerPlatformUserId: $(PowerPlatformUserId)
+      PowerPlatformPassword: $(PowerPlatformPassword)
+      PowerPlatformHomeRealmUri: $(PowerPlatformHomeRealmUri)
+      PowerPlatformAuthenticationType: $(PowerPlatformAuthenticationType)
+      PowerPlatformClientId: $(PowerPlatformClientId)
+      PowerPlatformAppId: $(PowerPlatformAppId)
+      PowerPlatformApplicationId: $(PowerPlatformApplicationId)
+      PowerPlatformClientSecret: $(PowerPlatformClientSecret)
+      PowerPlatformSecret: $(PowerPlatformSecret)
+      PowerPlatformRedirectUri: $(PowerPlatformRedirectUri)
+      PowerPlatformReplyUrl: $(PowerPlatformReplyUrl)
+      PowerPlatformTokenCacheStorePath: $(PowerPlatformTokenCacheStorePath)
+      PowerPlatformStoreName: $(PowerPlatformStoreName)
+      PowerPlatformCertificateStoreName: $(PowerPlatformCertificateStoreName)
+      PowerPlatformThumbprint: $(PowerPlatformThumbprint)
+      PowerPlatformCertThumbprint: $(PowerPlatformCertThumbprint)

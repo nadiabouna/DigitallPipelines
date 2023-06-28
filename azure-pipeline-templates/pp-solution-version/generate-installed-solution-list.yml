@@ -1,0 +1,29 @@
+# Extract the list of solutions installed in the target environment
+#
+# Prerequisites:
+# - Powerapps CLI installed (e.g. pac/install*.yml)
+# - Powerapps CLI authenticated (e.g. pac-auth/create*.yml)
+# - Output directory exists
+
+parameters:
+  # ----- Optional predefined parameters -----
+
+  # Output directory for the solution details file. Defaults to the agent's temp directory
+  - name: outputDirectory
+    displayName: Output Directory
+    type: string
+    default: $(Agent.TempDirectory)
+
+  # Name of the solution details file. Defaults to "installed-solutions.json"
+  - name: solutionDetailsFileName
+    displayName: Solution Details File Name
+    type: string
+    default: installed-solutions.json
+
+steps:
+  # Execute pac command to list installed solutions and save the output as json file
+  - template: ../pac-execute/custom-command.yml
+    parameters:
+      arguments: solution,list
+      outputFile: '${{ parameters.outputDirectory }}/${{ parameters.solutionDetailsFileName }}'
+      displayName: 'Get installed solutions'

@@ -1,0 +1,103 @@
+# Stages all changes in given git repository
+#
+# This will update two global variables:
+# - UncommittedChanges: True if there are uncommitted changes
+# - LocalChanges: True if there are unpublished changes
+
+parameters:
+  # ----- Optional predefined parameters -----
+  
+  # Path to the git repository
+  - name: path
+    displayName: Path to git repository
+    type: string
+    default: '$(Build.Repository.LocalPath)'
+
+  # Option to ignore project file changes. If no sync is used there is a high chance that
+  #   the project guid in the project file changes but nothing else.
+  # Setting this to true will ignore changes if this is the only change
+  - name: ignoreProjectFileChanges
+    displayName: Ignore changes on cdsproj files if they are the only changes
+    type: boolean
+    default: false
+
+  # ----- Optional general feature parameters -----
+
+  # Overwrite task condition
+  - name: condition
+    displayName: Condition
+    type: string
+    default: succeeded()
+
+steps:
+  # Stage all changes
+  - task: PowerShell@2
+    displayName: 'Git: Stage changes'
+    condition: ${{ parameters.condition }}
+    inputs:
+      targetType: inline
+      workingDirectory: ${{ parameters.path }}
+      script: |
+        $Debug = $env:Debug
+        $LocalChanges = $env:LocalChanges
+        $UncommittedChanges = $env:UncommittedChanges
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]WorkingDirectory=${{ parameters.path }}"
+          Write-Host "##[debug]IgnoreProjectFileChanges=${{ parameters.ignoreProjectFileChanges }}"
+          Write-Host "##[debug]LocalChanges=$LocalChanges"
+          Write-Host "##[debug]UncommittedChanges=$UncommittedChanges"
+        }
+
+        Write-Host "Stage all changes"
+        git add --all
+
+        # Collect all changed file names
+        $diff = git diff --name-only --cached
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]Diff=$diff"
+        }
+
+        # Check if there are any changes
+        If ($diff.Count -gt 0) {
+
+          # Collect all changed file names except for cdsproj files
+          $diff = git diff --name-only --cached -- ':!*.cdsproj'
+
+          # Check if cdsproj files should be ignored and if there are any changes
+          If ($${{ parameters.ignoreProjectFileChanges }} -And $diff.Count -eq 0) {
+            Write-Host "##vso[task.logissue type=warning]Changes only in cdsproj - not counting as uncommitted changes"
+            $Changes = $False
+          } else {
+            Write-Host "##[debug]Uncommitted changes found"
+            $Changes = $True
+          }
+        } else {
+          Write-Host "##[debug]No uncommitted changes found"
+          $Changes = $False
+        }
+
+        if ("$LocalChanges" -eq "") {
+          Write-Host "##[debug]Init LocalChanges with false"
+          $LocalChanges = $False
+        }
+
+        if ("$UncommittedChanges" -eq "") {
+          Write-Host "##[debug]Init UncommittedChanges with false"
+          $UncommittedChanges = $False
+        }
+
+        Write-Host "##[debug]Changes found: $Changes and $LocalChanges"
+        $LocalChanges = $Changes -eq $True -or $LocalChanges -eq $True
+        $UncommittedChanges = $Changes -eq $True -or $UncommittedChanges -eq $True
+
+        Write-Host "##vso[task.setvariable variable=LocalChanges]$LocalChanges"
+        Write-Host "##vso[task.setvariable variable=UncommittedChanges]$UncommittedChanges"
+
+        Write-Host "##[debug]Local changes after stage: $LocalChanges"
+        Write-Host "##[debug]Uncommitted changes after stage: $UncommittedChanges"
+    env:
+      Debug: $(System.Debug)
+      LocalChanges: $(LocalChanges)
+      UncommittedChanges: $(UncommittedChanges)

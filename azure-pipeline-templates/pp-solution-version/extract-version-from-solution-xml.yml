@@ -1,0 +1,66 @@
+# Extract solution version from an unpacked solution
+#
+# Prerequisites:
+# - Power Platform Build Tools for Azure DevOps extension
+# - Power Platform Tool Installer executed (e.g. pac/install*.yml)
+
+parameters:
+  # ----- Required parameters -----
+
+  # The path to the Solution.xml file
+  - name: filePath
+    displayName: Path to the Solution.xml file
+    type: string
+
+  # ----- Optional predefined parameters -----
+
+  # Name of version task to use in following tasks
+  - name: extractLocalVersionTaskName
+    displayName: Name of version task to use in following tasks
+    type: string
+    default: getSolutionVersion
+
+  # ----- Optional general feature parameters -----
+
+  # Overwrite task condition
+  - name: condition
+    displayName: Condition
+    type: string
+    default: succeeded()
+
+steps:
+  # Get solution version
+  - task: PowerShell@2
+    displayName: Get solution version
+    name: ${{ parameters.extractLocalVersionTaskName }}
+    condition: ${{ parameters.condition }}
+    inputs:
+      targetType: inline
+      script: |
+        $Debug = $env:Debug
+        $FilePath = $env:FilePath
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]FilePath=$FilePath"
+        }
+
+        $SolutionUniqueName = Select-Xml `
+          -Path "$FilePath" `
+          -XPath ImportExportXml/SolutionManifest/UniqueName `
+          | Select-Object -ExpandProperty Node `
+          | Select-Object -ExpandProperty "#text"
+
+        Write-Host "##[debug]Found solution unique name: $SolutionUniqueName"
+        Write-Host "##vso[task.setvariable variable=SolutionUniqueName;isoutput=true]$SolutionUniqueName"
+
+        $SolutionVersion = Select-Xml `
+          -Path "$FilePath" `
+          -XPath ImportExportXml/SolutionManifest/Version `
+          | Select-Object -ExpandProperty Node `
+          | Select-Object -ExpandProperty "#text"
+
+        Write-Host "##[debug]Found solution version: $SolutionVersion"
+        Write-Host "##vso[task.setvariable variable=SolutionVersion;isoutput=true]$SolutionVersion"
+    env:
+      Debug: $(System.Debug)
+      FilePath: ${{ parameters.filePath }}

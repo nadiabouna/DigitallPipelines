@@ -1,0 +1,27 @@
+# Install Power Platform Build Tools and make the tooling available in the path
+#
+# https://github.com/microsoft/powerplatform-build-tools
+
+parameters:
+  # ----- Optional feature parameters -----
+
+  # Add pac executable to path
+  - name: addToPath
+    displayName: Add pac to path
+    type: boolean
+    default: true
+
+steps:
+  # Install Power Platform Build Tools
+  - task: PowerPlatformToolInstaller@2
+    displayName: Install Power Platform Tools
+
+  # Make available in path depending on OS
+  - task: PowerShell@2
+    displayName: Add pac to path
+    condition: and(succeeded(), eq('${{ parameters.addToPath }}', 'true'))
+    inputs:
+      targetType: inline
+      script: |
+        $pacFolder = if ("$(Agent.OS)" -eq "Linux") { "pac_linux" } else { "pac" }
+        Write-Host "##vso[task.prependpath]$Env:POWERPLATFORMTOOLS_PACCLIPATH/$pacFolder/tools/"

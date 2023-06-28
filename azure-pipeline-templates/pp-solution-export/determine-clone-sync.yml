@@ -1,0 +1,45 @@
+# Takes a path to a folder and a solution unique name and checks if it is already cloned
+#
+# This produces an output variable telling if a clone is needed:
+# - SolutionConfig_[SolutionUniqueName]_CloneNeeded = true|false
+
+parameters:
+  # ----- Required parameters -----
+
+  # The unique name of the solution
+  - name: solutionUniqueName
+    displayName: Solution unique name
+    type: string
+
+  # ----- Optional predefined parameters -----
+
+  # The path to the solution folder
+  - name: solutionsFolder
+    displayName: Solution folder
+    type: string
+
+steps:
+  # Check if solution folder already exists (assuming if it does it is already cloned)
+  - task: PowerShell@2
+    displayName: Check if solution is already cloned
+    inputs:
+      targetType: inline
+      workingDirectory: ${{ parameters.solutionsFolder }}
+      script: |
+        $Debug = $env:Debug
+        $SolutionUniqueName = $env:SolutionUniqueName
+        $WorkingDirectory = $env:WorkingDirectory
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]SolutionUniqueName=$SolutionUniqueName"
+          Write-Host "##[debug]WorkingDirectory=$WorkingDirectory"
+        }
+
+        $CloneNeeded = !(Test-Path -Path "$SolutionUniqueName")
+
+        Write-Host "Clone needed: $CloneNeeded"
+        Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_CloneNeeded]$CloneNeeded"
+    env:
+      Debug: $(System.Debug)
+      SolutionUniqueName: ${{ parameters.solutionUniqueName }}
+      WorkingDirectory: ${{ parameters.solutionsFolder }}

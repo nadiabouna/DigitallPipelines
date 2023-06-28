@@ -1,0 +1,56 @@
+# Use the power platform tools to publish all customizations
+# Wrapped as a pipeline job
+#
+# Prerequisites:
+# - Service connection to the Power Platform environment
+
+parameters:
+  # ----- Required parameters -----
+
+  # Service connection to the target environment
+  - name: serviceConnection
+    displayName: Service Connection
+    type: string
+
+  # ----- Optional predefined parameters -----
+
+  # Override default condition for job execution
+  - name: condition
+    displayName: Overwrite condition for job
+    type: string
+    default: succeeded()
+
+  # Override the job name
+  - name: jobName
+    displayName: Job name
+    type: string
+    default: publishCustomizations
+
+  # Type of service connection
+  - name: serviceConnectionType
+    displayName: Service connection type
+    type: string
+    values:
+      - PowerPlatformSPN
+      - PowerPlatformEnvironment
+    default: PowerPlatformSPN
+
+jobs:
+  # Publish all customizations
+  - job: ${{ parameters.jobName }}
+    displayName: Publish all customizations
+    condition: ${{ parameters.condition }}
+    steps:
+      # Install Power Platform CLI
+      - template: ../pac/install.yml
+
+      # Publish all customizations
+      - task: PowerPlatformPublishCustomizations@2
+        displayName: Publish customizations
+        inputs:
+          authenticationType: ${{ parameters.serviceConnectionType }}
+          ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+            PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+          ${{ else }}:
+            PowerPlatformSPN: ${{ parameters.serviceConnection }}
+          Environment: $(PowerPlatformUrl)

@@ -1,0 +1,103 @@
+# Create a new pac auth profile from existing service connection
+# 
+# Currently there are two limitations to look out for:
+# - The url can not be extracted from the service connection. Therefore this might be required
+# - The service connection needs to be using a client secret
+#
+# Prerequisites:
+# - Powerapps CLI installed (e.g. ../pac/install*.yml)
+# - Service connection to the target environment (PowerPlatform)
+
+parameters:
+  # ----- Required parameters -----
+
+  # Service connection to the target environment
+  - name: serviceConnection
+    displayName: Service connection to power platform
+    type: string
+
+  # ----- Required parameters (might be set from env variable) -----
+
+  # Url of the power platform environment to use
+  - name: url
+    displayName: Resource URL to connect to
+    type: string
+    default: ''
+
+  # ----- Optional predefined parameters -----
+
+  # Name of task which extracts connection details
+  - name: connectionTaskName
+    displayName: Name of task which extracts connection details
+    type: string
+    default: powerPlatformSetConnectionVariables
+
+  # Type of service connection
+  - name: serviceConnectionType
+    displayName: Service connection type
+    type: string
+    values:
+      - PowerPlatformSPN
+      - PowerPlatformEnvironment
+    default: PowerPlatformSPN
+
+steps:
+  # Prepare environment url to be set
+  - task: PowerShell@2
+    displayName: Prepare power platform environment url
+    inputs:
+      targetType: 'inline'
+      script: |
+        $Debug = $env:Debug
+        $EnvironmentUrlParameter = "$($env:EnvironmentUrlParameter)"
+        $EnvironmentUrlBuildTools = "$($env:BuildTools.EnvironmentUrl)"
+        $EnvironmentUrlPowerPlatform = "$($env:PowerPlatformUrl)"
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]EnvironmentUrlParameter=$EnvironmentUrlParameter"
+          Write-Host "##[debug]EnvironmentUrlBuildTools=$EnvironmentUrlBuildTools"
+          Write-Host "##[debug]EnvironmentUrlPowerPlatform=$EnvironmentUrlPowerPlatform"
+        }
+
+        $EnvironmentUrl = "$EnvironmentUrlParameter"
+        if ($EnvironmentUrl -eq "") {
+          if ($EnvironmentUrlBuildTools -ne "") {
+            $EnvironmentUrl = $EnvironmentUrlBuildTools
+          } elseif ($EnvironmentUrlPowerPlatform -ne "") {
+            $EnvironmentUrl = $EnvironmentUrlPowerPlatform
+          }
+        }
+
+        Write-Host "##[debug]Using environment: $EnvironmentUrl"
+        Write-Host "##vso[task.setvariable variable=BuildTools.EnvironmentUrl]$EnvironmentUrl"
+    env:
+      Debug: $(System.Debug)
+      EnvironmentUrlParameter: ${{ parameters.url }}
+      PowerPlatformUrl: $(PowerPlatformUrl)
+
+  # Extract connection details from service connection
+  - task: PowerPlatformSetConnectionVariables@2
+    name: ${{ parameters.connectionTaskName }}
+    displayName: Prepare connection details
+    inputs:
+      authenticationType: ${{ parameters.serviceConnectionType }}
+      ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+        PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+        ApplicationId: $(PowerPlatformApplicationId)
+        RedirectUri: $(PowerPlatformRedirectUri)
+      ${{ else }}:
+        PowerPlatformSPN: ${{ parameters.serviceConnection }}
+
+  # Create auth profile with extracted information and additional url
+  - template: ../pac-auth/create.yml
+    parameters:
+      ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+        username: $(${{ parameters.connectionTaskName }}.BuildTools.UserName)
+        password: $(${{ parameters.connectionTaskName }}.BuildTools.Password)
+        url: $(PowerPlatformUrl)
+        ignoreEnvs: true
+      ${{ else }}:
+        clientSecret: $(${{ parameters.connectionTaskName }}.BuildTools.ClientSecret)
+        tenant: $(${{ parameters.connectionTaskName }}.BuildTools.TenantId)
+        applicationId: $(${{ parameters.connectionTaskName }}.BuildTools.ApplicationId)
+        url: ${{ parameters.url }}

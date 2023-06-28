@@ -1,0 +1,23 @@
+# Install DIGITALL Power Tools
+#
+# https://github.com/diGITALLNature/DigitallPower/
+
+parameters:
+  # ----- Optional predefined parameters -----
+
+  # Specify an explicit version to install
+  - name: version
+    displayName: Version to install
+    type: string
+    default: ''
+
+steps:
+  # Install dgtp tooling
+  - task: PowerShell@2
+    displayName: Install dgt.power
+    inputs:
+      targetType: inline
+      ${{ if eq(parameters.version, '') }}:
+        script: dotnet tool install --global dgt.power
+      ${{ else }}:
+        script: dotnet tool install --global dgt.power --version ${{ parameters.version }}

@@ -1,0 +1,101 @@
+# Extract the list of solutions cloned to a local directory
+#
+# Prerequisites:
+# - Solutions are extracted in local directory subfolder
+
+parameters:
+  # ----- Optional predefined parameters -----
+
+  # Directory of the solution folders
+  - name: solutionDirectory
+    displayName: Solution directory
+    type: string
+    default: $(Build.Repository.LocalPath)/solutions
+
+  # Output directory for the solution details file. Defaults to the agent's temp directory
+  - name: outputDirectory
+    displayName: Output Directory
+    type: string
+    default: $(Agent.TempDirectory)
+
+  # Name of the solution details file. Defaults to "local-solutions.json"
+  - name: solutionDetailsFileName
+    displayName: Solution Details File Name
+    type: string
+    default: local-solutions.json
+
+  # Relative path of the solution.xml to a solution folder
+  - name: relativeSolutionXmlPath
+    displayName: Relative solution.xml path
+    type: string
+    default: src/Other/Solution.xml
+
+  # Override the job name
+  - name: jobName
+    displayName: Job Name
+    type: string
+    default: generateLocalSolutionList
+
+  # Override artifact name
+  - name: artifactName
+    displayName: Artifact Name
+    type: string
+    default: local-solution-list
+
+  # ----- Optional feature parameters -----
+
+  # Name of triggering pipeline containing solution code and deployment settings artifact
+  - name: triggerPipeline
+    displayName: Name of triggering pipeline containing solution code and deployment settings artifact
+    type: string
+    default: ''
+
+  # ----- Optional general feature parameters -----
+
+  # Option to overwrite the condition for this task
+  - name: condition
+    displayName: Overwrite condition for task
+    type: string
+    default: succeeded()
+
+  # Use solution code from artifact instead of version associated with pipeline commit
+  # > Used to run export and deployment in one pipeline without need to clone newest commit created by export pipeline
+  - name: solutionCodeArtifactName
+    displayName: Name of artifact containing solution code
+    type: string
+    default: ''
+
+jobs:
+  # Generate solution list and publish as artifact
+  - job: ${{ parameters.jobName }}
+    displayName: Generate local solution list
+    condition: ${{ parameters.condition }}
+
+    steps:
+      # If we triggered from a pipeline use the artifact
+      - ${{ if and(ne(parameters.triggerPipeline, ''), eq(variables['Build.Reason'], 'ResourceTrigger')) }}:
+        - checkout: none
+        - task: DownloadPipelineArtifact@2
+          displayName: Download solution code artifact
+          inputs:
+            buildType: specific
+            project: $(System.TeamProjectId)
+            definition: ${{ parameters.triggerPipeline }}
+            specificBuildWithTriggering: true
+            artifactName:  Export_Solutions_Code
+            targetPath: ${{ parameters.solutionDirectory }}
+
+      # Generate solution list
+      - template: ../pp-solution-version/generate-local-solution-list.yml
+        parameters:
+          solutionDirectory: ${{ parameters.solutionDirectory }}
+          outputDirectory: ${{ parameters.outputDirectory }}
+          solutionDetailsFileName: ${{ parameters.solutionDetailsFileName }}
+          relativeSolutionXmlPath: ${{ parameters.relativeSolutionXmlPath }}
+
+      # Publish solution list as artifact
+      - task: PublishPipelineArtifact@1
+        displayName: Publish local solution list
+        inputs:
+          artifactName: ${{ parameters.artifactName }}
+          targetPath: ${{ parameters.outputDirectory }}/${{ parameters.solutionDetailsFileName }}

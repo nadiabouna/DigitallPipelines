@@ -1,0 +1,110 @@
+# Extract the list of solutions cloned to a local directory
+#
+# Prerequisites:
+# - Solutions are extracted in local directory subfolder
+
+parameters:
+  # ------ Optional predefined parameters ------
+
+  # Directory of the solution folders
+  - name: solutionDirectory
+    displayName: Solution directory
+    type: string
+    default: $(Build.Repository.LocalPath)/solutions
+
+  # Output directory for the solution details file. Defaults to the agent's temp directory
+  - name: outputDirectory
+    displayName: Output Directory
+    type: string
+    default: $(Agent.TempDirectory)
+
+  # Name of the solution details file. Defaults to "local-solutions.json"
+  - name: solutionDetailsFileName
+    displayName: Solution Details File Name
+    type: string
+    default: local-solutions.json
+
+  # Relative path of the solution.xml to a solution folder
+  - name: relativeSolutionXmlPath
+    displayName: Relative solution.xml path
+    type: string
+    default: src/Other/Solution.xml
+
+steps:
+  # Get solution versions
+  - task: PowerShell@2
+    displayName: Get solution versions
+    inputs:
+      targetType: inline
+      workingDirectory: ${{ parameters.solutionDirectory }}
+      script: |
+        $Debug = $env:Debug
+        $SolutionDirectory = $env:SolutionDirectory
+        $OutputDirectory = $env:OutputDirectory
+        $SolutionDetailsFileName = $env:SolutionDetailsFileName
+        $RelativeSolutionXmlPath = $env:RelativeSolutionXmlPath
+        $WorkingDirectory = $env:WorkingDirectory
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]SolutionDirectory=$SolutionDirectory"
+          Write-Host "##[debug]OutputDirectory=$OutputDirectory"
+          Write-Host "##[debug]SolutionDetailsFileName=$SolutionDetailsFileName"
+          Write-Host "##[debug]RelativeSolutionXmlPath=$RelativeSolutionXmlPath"
+          Write-Host "##[debug]WorkingDirectory=$WorkingDirectory"
+        }
+
+        $SolutionFolders = Get-ChildItem -Path . -Directory
+
+        Write-Host "##[section]Collecting solution versions"
+        $SolutionInfo = @()
+
+        foreach ($SolutionFolder in $SolutionFolders) {
+          Write-Host "##[group]Collecting version: $SolutionFolder"
+
+          $SolutionXmlPath = Join-Path $SolutionFolder.FullName $RelativeSolutionXmlPath
+
+          if ($Debug -eq $True) {
+            Write-Host "##[debug]SolutionXmlPath=$SolutionXmlPath"
+          }
+
+          if (Test-Path $SolutionXmlPath) {
+            # Collect solution unique name
+            $SolutionUniqueName = Select-Xml `
+              -Path $SolutionXmlPath `
+              -XPath ImportExportXml/SolutionManifest/UniqueName `
+              | Select-Object -ExpandProperty Node `
+              | Select-Object -ExpandProperty "#text"
+            Write-Host "Unique name: $SolutionUniqueName"
+  
+            # Collect solution version
+            $solutionVersion = Select-Xml `
+              -Path $SolutionXmlPath `
+              -XPath ImportExportXml/SolutionManifest/Version `
+              | Select-Object -ExpandProperty Node `
+              | Select-Object -ExpandProperty "#text"
+            Write-Host "Version: $solutionVersion"
+  
+            # Append solution info to array
+            $SolutionInfo += @{
+              SolutionUniqueName = $SolutionUniqueName
+              VersionNumber = $solutionVersion
+            }
+          } else {
+            Write-Host "##[warning]Solution.xml not found in $SolutionXmlPath"
+          }
+
+          Write-Host "##[endgroup]"
+        }
+
+        Write-Host "##[section]Write solution info to file"
+        $SolutionInfoFile = @{
+          Results = $SolutionInfo
+        }
+        $SolutionInfoFile | ConvertTo-Json | Out-File -FilePath (Join-Path $OutputDirectory $SolutionDetailsFileName)
+    env:
+      Debug: $(System.Debug)
+      SolutionDirectory: ${{ parameters.solutionDirectory }}
+      OutputDirectory: ${{ parameters.outputDirectory }}
+      SolutionDetailsFileName: ${{ parameters.solutionDetailsFileName }}
+      RelativeSolutionXmlPath: ${{ parameters.relativeSolutionXmlPath }}
+      WorkingDirectory: ${{ parameters.solutionDirectory }}
