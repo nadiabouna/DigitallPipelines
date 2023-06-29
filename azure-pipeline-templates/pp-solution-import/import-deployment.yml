@@ -73,6 +73,9 @@ jobs:
   - deployment: deploy_${{ parameters.environment.uniqueName }}
     displayName: Deploy to ${{ parameters.environment.friendlyName }}
 
+    ${{ if ne(variables['SolutionConfigTimeout_Deployment'], '') }}:
+      timeoutInMinutes: $(SolutionConfigTimeout_Deployment)
+
     environment: ${{ parameters.devOpsEnvironment }}
 
     dependsOn:

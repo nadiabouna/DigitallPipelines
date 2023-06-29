@@ -148,6 +148,9 @@ jobs:
       variables:
         SolutionConfig_${{ solution }}_IsUpToDate: $[ dependencies.compareSolutionVersionsJob.outputs['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'] ]
 
+        ${{ if ne(variables['SolutionConfigTimeout_Export'], '') }}:
+          timeoutInMinutes: $(SolutionConfigTimeout_Export)
+
       steps:
         # Install Power Platform CLI and create auth profile
         - template: ../pac/install.yml
