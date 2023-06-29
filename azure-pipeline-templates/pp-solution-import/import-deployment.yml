@@ -73,7 +73,7 @@ jobs:
   - deployment: deploy_${{ parameters.environment.uniqueName }}
     displayName: Deploy to ${{ parameters.environment.friendlyName }}
 
-    timeoutInMinutes: coalesce(variables['SolutionConfigTimeout_Deployment'], 60)
+    timeoutInMinutes: $[coalesce(variables['SolutionConfigTimeout_Deployment'], 60)]
 
     environment: ${{ parameters.devOpsEnvironment }}
 
