@@ -325,7 +325,7 @@ jobs:
                   # Uninstall solution
                   - task: PowerPlatformDeleteSolution@2
                     displayName: '${{ solution }}: Uninstall'
-                    condition: and(succeeded(), eq(variables['SolutionConfig_${{ solution }}_RollbackType'], 'Uninstall'))
+                    condition: and(succeeded(), eq(variables['SolutionConfig_${{ solution }}_Rollback_Type'], 'Uninstall'))
                     inputs:
                       authenticationType: ${{ parameters.serviceConnectionType }}
                       ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
