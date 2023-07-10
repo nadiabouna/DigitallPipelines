@@ -139,7 +139,7 @@ stages:
                   project: $(System.TeamProjectId)
                   definition: ${{ parameters.triggerPipeline }}
                   specificBuildWithTriggering: true
-                  artifactName:  Export_Deployment_Settings
+                  artifactName:  ${{  environment.uniqueName }}_Solutions
                   itemPattern: '**/'
                   targetPath: $(Build.Repository.LocalPath)
 
@@ -154,3 +154,5 @@ stages:
 
             # Update flow states
             - template: ../dgtp-maintenance/set-workflow-state.yml
+              parameters:
+                config: $(Build.Repository.LocalPath)/env-conn-settings.json
