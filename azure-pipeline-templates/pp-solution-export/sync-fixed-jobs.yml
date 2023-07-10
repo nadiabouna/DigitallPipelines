@@ -96,6 +96,7 @@ jobs:
       serviceConnectionType: ${{ parameters.serviceConnectionType }}
       localJobName: generateLocalSolutionList
       installedJobName: generateInstalledSolutionList
+      localSolutionDirectory: ${{ parameters.outputDirectory }}
       condition: and(succeeded(), eq('${{ parameters.onlySyncUpdatedSolutions }}', 'true'))
 
   # Compare solution versions so entire import jobs could be skipped

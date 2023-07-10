@@ -49,6 +49,9 @@ jobs:
   - job: prepare_${{ parameters.environment.uniqueName }}_solutions
     displayName: Prepare solutions ${{ parameters.environment.friendlyName }}
 
+    variables:
+      DeploymentSettingsFolder: $[ coalesce(variables['DeploymentSettingsPath'], 'parameters.solutionFolder/../deployment-settings') ]
+
     steps:
       # If we triggered from a pipeline use artifacts
       - ${{ if and(ne(parameters.triggerPipeline, ''), eq(variables['Build.Reason'], 'ResourceTrigger')) }}:
@@ -68,14 +71,14 @@ jobs:
 
         # Download deployment settings from artifact
         - task: DownloadPipelineArtifact@2
-          displayName: Download solution code artifact
+          displayName: Download deployment settings
           inputs:
             buildType: specific
             project: $(System.TeamProjectId)
             definition: ${{ parameters.triggerPipeline }}
             specificBuildWithTriggering: true
             artifactName:  Export_Deployment_Settings
-            targetPath: ${{ parameters.solutionFolder }}
+            targetPath: $(DeploymentSettingsFolder)
 
       # Prepare each solution
       - ${{ each solution in split(parameters.solutionList, ',') }}:
@@ -120,23 +123,25 @@ jobs:
           script: |
             $Debug = $env:Debug
             $DeploymentSettingsPath = $env:DeploymentSettingsPath
+            $DeploymentSettingsFolder = $env:DeploymentSettingsFolder
             $EnvironmentUniqueName = $env:EnvironmentUniqueName
 
             if ($Debug -eq $True) {
               Write-Host "##[debug]DeploymentSettingsPath=$DeploymentSettingsPath"
+              Write-Host "##[debug]DeploymentSettingsFolder=$DeploymentSettingsFolder"
               Write-Host "##[debug]EnvironmentUniqueName=$EnvironmentUniqueName"
             }
 
             if ("$DeploymentSettingsPath" -ne "") {
               Write-Host "##[debug]Using explicit deployment settings path $DeploymentSettingsPath"
             } else {
-              $DeploymentSettingsPath = "$(Build.Repository.LocalPath)/deployment-settings/env-conn-settings/env-conn-settings.$EnvironmentUniqueName.json"
+              $DeploymentSettingsPath = "$DeploymentSettingsFolder/env-conn-settings/env-conn-settings.$EnvironmentUniqueName.json"
               Write-Host "##[debug]Deployment settings path is not set, trying environment default $DeploymentSettingsPath"
 
               if (Test-Path -Path "$DeploymentSettingsPath") {
                 Write-Host "##[debug]Found deployment settings at $DeploymentSettingsPath"
               } else {
-                $DeploymentSettingsPath = "$(Build.Repository.LocalPath)/deployment-settings/env-conn-settings/env-conn-settings.json"
+                $DeploymentSettingsPath = "$DeploymentSettingsFolder/env-conn-settings/env-conn-settings.json"
                 Write-Host "##[debug]Deployment settings do not exist on environment level. Trying general default $DeploymentSettingsPath"
 
                 if (Test-Path -Path "$DeploymentSettingsPath") {
@@ -153,6 +158,7 @@ jobs:
         env:
           Debug: $(System.Debug)
           DeploymentSettingsPath: ${{ parameters.deploymentSettingsPath }}
+          DeploymentSettingsFolder: $(DeploymentSettingsFolder)
           EnvironmentUniqueName: ${{ parameters.environment.uniqueName }}
 
       # Publish solutions as artifact

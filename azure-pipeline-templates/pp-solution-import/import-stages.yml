@@ -55,6 +55,12 @@ parameters:
     type: boolean
     default: true
 
+  # Path to solutions folder
+  - name: solutionFolder
+    displayName: Solution folder
+    type: string
+    default: '$(Build.Repository.LocalPath)/solutions'
+
 stages:
   # Prepare solutions in separate stage
   - stage: prepare_solution_deployments
@@ -69,6 +75,7 @@ stages:
             solutionList: ${{ parameters.solutionList }}
             environment: ${{ environment }}
             triggerPipeline: ${{ parameters.triggerPipeline }}
+            solutionFolder: ${{ parameters.solutionFolder }}
 
         # Generate list of local solutions
         - template: ../pp-solution-version/generate-local-solution-list-job.yml
@@ -76,6 +83,7 @@ stages:
             jobName: ${{ environment.uniqueName }}_GenerateLocalSolutionList
             artifactName: ${{ environment.uniqueName }}_SolutionList_Local
             triggerPipeline: ${{ parameters.triggerPipeline }}
+            solutionDirectory: ${{ parameters.solutionFolder }}
 
       # TODO: Add job for solution checker etc.
 
