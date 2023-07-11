@@ -135,7 +135,7 @@ stages:
               - task: DownloadPipelineArtifact@2
                 displayName: Download solution code artifact
                 inputs:
-                  artifactName:  ${{  environment.uniqueName }}_Solutions
+                  artifactName: ${{  environment.uniqueName }}_Solutions
                   itemPattern: '**/'
                   targetPath: $(Build.Repository.LocalPath)
 
@@ -151,4 +151,4 @@ stages:
             # Update flow states
             - template: ../dgtp-maintenance/set-workflow-state.yml
               parameters:
-                config: $(Build.Repository.LocalPath)/env-conn-settings.json
+                config: $(Build.Repository.LocalPath)/${{  environment.uniqueName }}_Solutions/env-conn-settings.json
