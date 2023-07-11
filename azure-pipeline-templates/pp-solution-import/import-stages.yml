@@ -135,8 +135,13 @@ stages:
               - task: DownloadPipelineArtifact@2
                 displayName: Download solution code artifact
                 inputs:
-                  artifactName: ${{  environment.uniqueName }}_Solutions
-                  targetPath: $(Build.Repository.LocalPath)
+                  buildType: specific
+                  project: $(System.TeamProjectId)
+                  definition: ${{ parameters.triggerPipeline }}
+                  specificBuildWithTriggering: true
+                  artifactName:  Export_Deployment_Settings
+                  itemPattern: '**/'
+                  targetPath: $(Build.Repository.LocalPath)/deployment-settings
 
             # Prepare dgtp tooling
             - template: ../dgtp/install.yml
@@ -149,5 +154,3 @@ stages:
 
             # Update flow states
             - template: ../dgtp-maintenance/set-workflow-state.yml
-              parameters:
-                config: $(Build.Repository.LocalPath)/env-conn-settings.json
