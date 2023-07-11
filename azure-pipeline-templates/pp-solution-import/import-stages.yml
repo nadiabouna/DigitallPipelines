@@ -135,10 +135,6 @@ stages:
               - task: DownloadPipelineArtifact@2
                 displayName: Download solution code artifact
                 inputs:
-                  buildType: specific
-                  project: $(System.TeamProjectId)
-                  definition: ${{ parameters.triggerPipeline }}
-                  specificBuildWithTriggering: true
                   artifactName:  ${{  environment.uniqueName }}_Solutions
                   itemPattern: '**/'
                   targetPath: $(Build.Repository.LocalPath)
