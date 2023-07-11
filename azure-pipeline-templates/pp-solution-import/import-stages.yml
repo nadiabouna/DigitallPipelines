@@ -140,7 +140,7 @@ stages:
                   definition: ${{ parameters.triggerPipeline }}
                   specificBuildWithTriggering: true
                   artifactName:  Export_Deployment_Settings
-                  itemPattern: '**/'
+                  itemPattern: '**/*'
                   targetPath: $(Build.Repository.LocalPath)/deployment-settings
 
             # Prepare dgtp tooling
