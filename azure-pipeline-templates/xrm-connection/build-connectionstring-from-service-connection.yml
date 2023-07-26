@@ -123,6 +123,10 @@ steps:
           $PowerPlatformConnectionString = $PowerPlatformConnectionString -replace 'url=undefined', "url=$PowerPlatformUrl"
         }
 
+        if ($Debug -eq $True) {
+          Write-Host $PowerPlatformConnectionString -split ";"
+        }
+
         Write-Host "##vso[task.setvariable variable=$OutputVariableName;issecret=true;isreadonly=true]$PowerPlatformConnectionString"
     env:
       Debug: $(System.Debug)
