@@ -124,7 +124,7 @@ steps:
         }
 
         if ($Debug -eq $True) {
-          Write-Host $PowerPlatformConnectionString -split ";"
+          $PowerPlatformConnectionString -split ";"
         }
 
         Write-Host "##vso[task.setvariable variable=$OutputVariableName;issecret=true;isreadonly=true]$PowerPlatformConnectionString"
