@@ -154,3 +154,5 @@ stages:
 
             # Update flow states
             - template: ../dgtp-maintenance/set-workflow-state.yml
+              parameters:
+                environmentUniqueName: ${{ environment.uniqueName }}
