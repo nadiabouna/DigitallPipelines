@@ -2,7 +2,14 @@
 # Runs on a nightly schedule but scheduled after solution configuration was updated
 
 # No automated trigger and also no schedule since a pipeline trigger is used
-trigger: none
+trigger: 
+  branches:
+    include:
+    - 'main'
+  paths:
+    include:
+    - deployment-settings/solution-configuration/solution-configuration.yml
+
 
 resources:
   repositories:
@@ -19,17 +26,6 @@ resources:
       # used, the ref mus be set:
       # ref: refs/heads/preview
       # ref: refs/heads/master
-
-  pipelines:
-    # Add a reference to the pipeline updating the solution configuration
-    # Runs whenever the update solution configuration ran
-    # > This requires the update solution configuration to be configured with matching name and tags
-    - pipeline: update-solution-configuration
-      source: Update solution configuration # TODO: Replace with your pipeline name
-      trigger:
-        tags: # TODO: Replace with your tag names
-          - Environment_Development
-          - Trigger_Export
 
 # By default use an ubuntu image
 pool:

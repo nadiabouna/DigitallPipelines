@@ -23,6 +23,11 @@ parameters:
     default:
       - Environment_Development
 
+  - name: skipCI
+    displayName: Commit can trigger CI
+    type: boolean
+    default: false
+
   # ----- Optional parameters -----
 
   # Type of service connection
@@ -61,7 +66,10 @@ steps:
   # Stage, commit and push changes
   - template: ../git/quick-commit-push.yml
     parameters:
-      commitMessage: "Update solution carriers"
+      ${{ if eq(parameters.skipCI, false) }}:
+        commitMessage: "Update solution carriers"
+      ${{ if eq(parameters.skipCI, true) }}:
+        commitMessage: "Update solution carriers [skip ci]"
 
   # Add pipeline tags
   - template: ../az-pipeline/add-build-tags.yml

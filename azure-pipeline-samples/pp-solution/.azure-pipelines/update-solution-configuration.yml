@@ -36,10 +36,10 @@ pool:
 parameters:
   # After updating the solution configuration, trigger the export of the solutions with the new configuration
   # > This requires the export pipeline to have a pipeline trigger for this pipeline filtered on the tag 'Trigger_Export'
-  - name: triggerExport
-    displayName: Trigger export of solutions
+  - name: skipExport
+    displayName: Skip export of solutions
     type: boolean
-    default: true
+    default: false
 
 # Use existing variable groups
 variables:
@@ -52,5 +52,6 @@ extends:
     serviceConnection: Power Platform Service Connection Development # TODO: Replace with your service connection name
     customTags:
       - Environment_Development # TODO: Replace with your custom tags
-      - ${{ if eq(parameters.triggerExport, true) }}:
+      - ${{ if eq(parameters.skipExport, false) }}:
         - Trigger_Export
+    skipCI: parameters.skipExport
