@@ -1,0 +1,55 @@
+# Update cloud flows with owner and state according to configuration file
+# Started manually
+
+# No automated trigger and also no schedule since a pipeline trigger is used
+trigger: none
+
+resources:
+  repositories:
+    # Add a reference to the pipelinetemplates repository where all the templates are located
+    # No need to clone them, the templates can be referenced directly
+    - repository: pipelinetemplates
+      type: github
+      name: DIGITALLNature/DigitallPipelines
+      endpoint: DIGITALL Pipelines Service Connection
+
+      # By default the default branch is used. If this is not the same default between projects
+      # (for most it is main, but for some it still is master) or a different one should be
+      # used, the ref mus be set:
+      # ref: refs/heads/preview
+      # ref: refs/heads/master
+
+# By default use an ubuntu image
+pool:
+  vmImage: ubuntu-latest
+
+parameters:
+  # Choose which environment to target
+  - name: environment
+    displayName: Environment to update cloud flows
+    type: string
+    default: test
+    values:
+      - test
+      - prod
+
+# Use existing variable groups and templates, depending on environment
+variables:
+  - ${{ if eq(parameters.environment, 'test') }}:
+    - group: Power Platform Environment Test
+  - ${{ elseif eq(parameters.environment, 'prod') }}:
+    - group: Power Platform Environment Prod
+
+# Prepare auth and install tools and update workflow states
+steps:
+  # Prepare dgtp tooling
+  - template: azure-pipeline-templates/dgtp/install.yml@pipelinetemplates
+  - template: azure-pipeline-templates/xrm-connection/build-connectionstring-from-service-connection.yml@pipelinetemplates
+    parameters:
+      outputVariableName: dgtp:xrm:connection
+      serviceConnection: Power Platform Service Connection
+
+  # Update cloud flows
+  - template: azure-pipeline-templates/dgtp-maintenance/set-workflow-state.yml@pipelinetemplates
+    parameters:
+      environmentUniqueName: ${{ parameters.environment }}

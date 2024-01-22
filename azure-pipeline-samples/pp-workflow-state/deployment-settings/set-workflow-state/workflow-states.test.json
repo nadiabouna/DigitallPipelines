@@ -1,0 +1,14 @@
+{
+    "solutionfilter": [
+        "solution_to_include"
+    ],
+    "publisherfilter": [
+        "publisher_to_include"
+    ],
+    "owner": "domainname.of@target.owner",
+    "flows": {
+        "flow name that needs to be handled differently": {
+            "disabled": true
+        }
+    }
+}
