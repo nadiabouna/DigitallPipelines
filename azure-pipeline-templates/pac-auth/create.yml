@@ -73,9 +73,6 @@ steps:
           "--name", "${{ parameters.name }}"
         )
 
-        if ("${{ parameters.url }}" -ne "") { $parameter += "--url", "${{ parameters.url }}" }
-        elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformUrl" -ne "`$`(PowerPlatformUrl)")) { $parameter += "--url", "$env:PowerPlatformUrl" }
-
         if ("${{ parameters.url }}" -ne "") { $parameter += "--environment", "${{ parameters.url }}" }
         elseif (($${{ parameters.ignoreEnvs }} -ne $True) -And ("$env:PowerPlatformUrl" -ne "`$`(PowerPlatformUrl)")) { $parameter += "--environment", "$env:PowerPlatformUrl" }
 
