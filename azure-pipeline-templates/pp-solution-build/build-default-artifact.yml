@@ -82,11 +82,11 @@ jobs:
 
       # Prepare each solution
       - ${{ each solution in split(parameters.solutionList, ',') }}:
-        # Use dotnet 6
+        # Use dotnet 8
         - task: UseDotNet@2
           displayName: Prepare dotnet version
           inputs:
-            version: 6.x
+            version: 8.x
 
         # Build solution project
         - task: DotNetCoreCLI@2
