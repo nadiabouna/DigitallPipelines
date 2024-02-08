@@ -60,6 +60,12 @@ parameters:
       - PowerPlatformEnvironment
     default: PowerPlatformSPN
 
+  # Continue on deployment failure
+  - name: continueOnDeploymentFailure
+    displayName: Continue on deployment failure
+    type: boolean
+    default: false
+
 jobs:
   # Generate list of installed solutions
   - template: ../pp-solution-version/generate-installed-solution-list-job.yml
@@ -79,6 +85,8 @@ jobs:
 
     dependsOn:
       - ${{ parameters.environment.uniqueName }}_GenerateInstalledSolutionList
+
+    continueOnError: ${{ parameters.continueOnDeploymentFailure }}
 
     strategy:
       runOnce:
