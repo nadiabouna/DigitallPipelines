@@ -61,6 +61,14 @@ steps:
     inputs:
       version: 8.x
 
+  # Restore projects
+  - task: DotNetCoreCLI@2
+    displayName: Restore project(s)
+    inputs:
+      command: restore
+      projects: ${{ parameters.projects }}
+      workingDirectory: $(Build.Repository.LocalPath)
+
   # Build projects
   - task: DotNetCoreCLI@2
     displayName: Build project(s)
