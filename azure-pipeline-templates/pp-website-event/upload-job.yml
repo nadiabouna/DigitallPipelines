@@ -1,0 +1,238 @@
+# Upload website (portal or power page) to the target environment
+
+parameters:
+  # ----- Required parameters -----
+
+  # Service connection to the target environment
+  - name: serviceConnection
+    displayName: Service connection to power platform
+    type: string
+
+  # Id of website
+  - name: webSiteId
+    displayName: Website ID to download
+    type: string
+
+  # Foldername that contains the portal content
+  - name: folderName
+    displayName: Name of folder that contains the portal content
+    type: string
+
+  # Name of devops environment used for approvals and checks
+  - name: devOpsEnvironment
+    displayName: DevOps Environment
+    type: string
+
+  # Configuration to use for event page
+  - name: eventPageConfiguration
+    displayName: Configuration to use for event page build
+    type: string
+
+  # Repository name containing event page sources
+  - name: eventPageRepo
+    displayName: Event page repo resource name
+    type: string
+
+  # ----- Optional recommended parameters -----
+
+  # Deployment profile to use for import
+  - name: deploymentProfile
+    displayName: Deployment profile to use for import
+    type: string
+    default: default
+
+  # ----- Optional predefined parameters -----
+
+  # Make a backup before uploading
+  # Enables rollback job
+  - name: backup
+    displayName: Make a backup before uploading
+    type: boolean
+    default: true
+
+  # Foldername to download portal towards
+  - name: folderPath
+    displayName: Folder where portal folder is contained
+    type: string
+    default: $(Build.Repository.LocalPath)
+
+  # File path for deploy to dynamics powershell script
+  - name: deployToDynamics365InstancePath
+    displayName: Deploy to dynamics powershell script
+    type: string
+    default: Scripts/DeployToDynamics365Instance.ps1
+
+  # Flag to enable skipping portal upload
+  - name: uploadPortalContent
+    displayName: Upload portal content
+    type: boolean
+    default: true
+
+  # Flag to enable skipping event page
+  - name: uploadEventPage
+    displayName: Upload event page
+    type: boolean
+    default: true
+
+jobs:
+  # Backup portal as artifact
+  - job: backup_portal
+    displayName: Backup portal
+    condition: and(succeeded(), eq('${{ parameters.backup }}', 'true'))
+    steps:
+      # Install Power Platform CLI
+      - template: ../pac/install.yml
+        parameters:
+          addToPath: false
+
+      # Download website content
+      - task: PowerPlatformDownloadPaportal@2
+        displayName: Download portal
+        inputs:
+          authenticationType: ${{ parameters.serviceConnectionType }}
+          ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+            PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+          ${{ else }}:
+            PowerPlatformSPN: ${{ parameters.serviceConnection }}
+          DownloadPath: $(Build.ArtifactStagingDirectory)
+          WebsiteId: ${{ parameters.webSiteId }}
+          Overwrite: true
+          Environment: $(PowerPlatformUrl)
+
+      # Publish portal backup as artifact
+      - task: PublishPipelineArtifact@1
+        displayName: Publish portal backup as artifact
+        inputs:
+          artifactName: portal-backup
+          targetPath: $(Build.ArtifactStagingDirectory)
+
+  # Build event package
+  - job: build_event_page
+    displayName: Build event page
+    condition: and(succeeded(), eq('${{ parameters.uploadEventPage }}', 'true'))
+    steps:
+      # Checkout event page repository
+      - checkout: eventPageRepo
+
+      # Prepare Node environment
+      - task: NodeTool@0
+        displayName: Install Node.js
+        inputs:
+          versionSpec: 10.x
+
+      # Install dependencies from lockfile
+      - script: |
+          npm ci
+        displayName: Install dependencies
+
+      # Build event page
+      - script: |
+          touch src/environments/environment.ts
+          npm run build -- --output-hashing none --configuration ${{ parameters.eventPageConfiguration }}
+        displayName: Build event page
+
+      # Copy dist files to artifact staging
+      - task: CopyFiles@2
+        inputs:
+          SourceFolder: dist/${{ parameters.eventPageConfiguration }}
+          TargetFolder: $(Build.ArtifactStagingDirectory)/dist/${{ parameters.eventPageConfiguration }}
+
+      # Copy deployment script
+      - task: CopyFiles@2
+        inputs:
+          SourceFolder: ${{ parameters.deployToDynamics365InstancePath }}
+          TargetFolder: $(Build.ArtifactStagingDirectory)/${{ parameters.deployToDynamics365InstancePath }}
+
+      # Upload artifact
+      - task: PublishPipelineArtifact@1
+        displayName: Publish dist files
+        inputs:
+          targetPath: $(Build.ArtifactStagingDirectory)
+          artifactName: event-page-dist
+
+  # Upload portal content and event page
+  - deployment: deploy_portal
+    displayName: Deploy portal
+
+    environment: ${{ parameters.devOpsEnvironment }}
+
+    dependsOn:
+      - backup_portal
+      - build_event_page
+    condition: and(
+        in(dependencies.backup_portal.result, 'Succeeded', 'SucceededWithIssues', 'Skipped'),
+        in(dependencies.build_event_page.result, 'Succeeded', 'SucceededWithIssues', 'Skipped')
+      )
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            # Don't load all artifacts
+            - download: none
+
+            - ${{ if eq('${{ parameters.uploadEventPage }}' }}:
+              # Download event page artifact
+              - task: DownloadPipelineArtifact@2
+                inputs:
+                  artifactName: event-page-dist
+                  path: $(Agent.TempDirectory)
+
+            - ${{ if eq('${{ parameters.uploadPortalContent }}' }}:
+              # Checkout portal sources
+              - checkout: self
+
+            # Install Power Platform CLI
+            - template: ../pac/install.yml
+              parameters:
+                addToPath: false
+
+            - ${{ if eq('${{ parameters.uploadPortalContent }}' }}:
+              # Upload portal content
+              - task: PowerPlatformUploadPaportal@2
+                displayName: Upload portal
+                inputs:
+                  authenticationType: PowerPlatformSPN
+                  PowerPlatformSPN: ${{ parameters.serviceConnection }}
+                  UploadPath: ${{ parameters.folderPath }}/${{ parameters.folderName }}
+                  DeploymentProfile: ${{ parameters.deploymentProfile }}
+                  Environment: $(PowerPlatformUrl)
+
+            - ${{ if eq('${{ parameters.uploadEventPage }}' }}:
+              # Create and set connection string
+              - template: azure-pipeline-templates/xrm-connection/build-connectionstring-from-service-connection.yml@pipelinetemplates
+                parameters:
+                  outputVariableName: dgtp:xrm:connection
+                  serviceConnection: ${{ parameters.serviceConnection }}
+
+              # Upload event page
+              - task: PowerShell@2
+                displayName: Run deploy to dynamics script
+                inputs:
+                  filePath: ${{ parameters.deployToDynamics365InstancePath }}
+                  workingDirectory: $(Agent.TempDirectory)
+
+        ${{ if eq(parameters.backup, 'true') }}:
+          on:
+            failure:
+              steps:
+                # Load backup artifact
+                - download: current
+                  artifact: portal-backup
+
+                # Install Power Platform CLI
+                - template: ../pac/install.yml
+                  parameters:
+                    addToPath: false
+
+                # Upload portal content
+                - task: PowerPlatformUploadPaportal@2
+                  displayName: Upload portal
+                  inputs:
+                    authenticationType: ${{ parameters.serviceConnectionType }}
+                    ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+                      PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+                    ${{ else }}:
+                      PowerPlatformSPN: ${{ parameters.serviceConnection }}
+                    UploadPath: $(Pipeline.Workspace)/portal-backup/${{ parameters.folderName }}
+                    Environment: $(PowerPlatformUrl)
