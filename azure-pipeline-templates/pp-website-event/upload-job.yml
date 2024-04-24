@@ -229,10 +229,7 @@ jobs:
                 - task: PowerPlatformUploadPaportal@2
                   displayName: Upload portal
                   inputs:
-                    authenticationType: ${{ parameters.serviceConnectionType }}
-                    ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
-                      PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
-                    ${{ else }}:
-                      PowerPlatformSPN: ${{ parameters.serviceConnection }}
+                    authenticationType: PowerPlatformSPN
+                    PowerPlatformSPN: ${{ parameters.serviceConnection }}
                     UploadPath: $(Pipeline.Workspace)/portal-backup/${{ parameters.folderName }}
                     Environment: $(PowerPlatformUrl)
