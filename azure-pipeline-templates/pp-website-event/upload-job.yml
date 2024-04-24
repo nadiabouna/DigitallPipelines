@@ -89,11 +89,8 @@ jobs:
       - task: PowerPlatformDownloadPaportal@2
         displayName: Download portal
         inputs:
-          authenticationType: ${{ parameters.serviceConnectionType }}
-          ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
-            PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
-          ${{ else }}:
-            PowerPlatformSPN: ${{ parameters.serviceConnection }}
+          authenticationType: PowerPlatformSPN
+          PowerPlatformSPN: ${{ parameters.serviceConnection }}
           DownloadPath: $(Build.ArtifactStagingDirectory)
           WebsiteId: ${{ parameters.webSiteId }}
           Overwrite: true
