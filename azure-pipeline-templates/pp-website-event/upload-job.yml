@@ -197,7 +197,7 @@ jobs:
 
             - ${{ if eq(parameters.uploadEventPage, 'true') }}:
               # Create and set connection string
-              - template: azure-pipeline-templates/xrm-connection/build-connectionstring-from-service-connection.yml@pipelinetemplates
+              - template: ../xrm-connection/build-connectionstring-from-service-connection.yml@pipelinetemplates
                 parameters:
                   outputVariableName: dgtp:xrm:connection
                   serviceConnection: ${{ parameters.serviceConnection }}
