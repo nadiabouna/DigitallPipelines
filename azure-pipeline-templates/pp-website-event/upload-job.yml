@@ -138,7 +138,7 @@ jobs:
       - task: CopyFiles@2
         inputs:
           Contents: ${{ parameters.deployToDynamics365InstancePath }}
-          TargetFolder: $(Build.ArtifactStagingDirectory)/${{ parameters.deployToDynamics365InstancePath }}
+          TargetFolder: $(Build.ArtifactStagingDirectory)
 
       # Upload artifact
       - task: PublishPipelineArtifact@1
