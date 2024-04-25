@@ -206,7 +206,7 @@ jobs:
               - task: PowerShell@2
                 displayName: Run deploy to dynamics script
                 inputs:
-                  filePath: ${{ parameters.deployToDynamics365InstancePath }}
+                  filePath: $(Agent.TempDirectory)/${{ parameters.deployToDynamics365InstancePath }}
                   workingDirectory: $(Agent.TempDirectory)
 
         ${{ if eq(parameters.backup, 'true') }}:
