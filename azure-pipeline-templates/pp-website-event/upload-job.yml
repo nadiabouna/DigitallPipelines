@@ -168,14 +168,14 @@ jobs:
             # Don't load all artifacts
             - download: none
 
-            - ${{ if eq('parameters.uploadEventPage', 'true') }}:
+            - ${{ if eq(parameters.uploadEventPage, 'true') }}:
               # Download event page artifact
               - task: DownloadPipelineArtifact@2
                 inputs:
                   artifactName: event-page-dist
                   path: $(Agent.TempDirectory)
 
-            - ${{ if eq('parameters.uploadPortalContent', 'true') }}:
+            - ${{ if eq(parameters.uploadPortalContent, 'true') }}:
               # Checkout portal sources
               - checkout: self
 
@@ -184,7 +184,7 @@ jobs:
               parameters:
                 addToPath: false
 
-            - ${{ if eq('parameters.uploadPortalContent', 'true') }}:
+            - ${{ if eq(parameters.uploadPortalContent, 'true') }}:
               # Upload portal content
               - task: PowerPlatformUploadPaportal@2
                 displayName: Upload portal
@@ -195,7 +195,7 @@ jobs:
                   DeploymentProfile: ${{ parameters.deploymentProfile }}
                   Environment: $(PowerPlatformUrl)
 
-            - ${{ if eq('parameters.uploadEventPage', 'true') }}:
+            - ${{ if eq(parameters.uploadEventPage, 'true') }}:
               # Create and set connection string
               - template: azure-pipeline-templates/xrm-connection/build-connectionstring-from-service-connection.yml@pipelinetemplates
                 parameters:
