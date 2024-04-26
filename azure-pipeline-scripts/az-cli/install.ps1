@@ -9,12 +9,21 @@ $azCli = Get-Command az -ErrorAction SilentlyContinue
 if ($null -eq $azCli) {
     Write-Host "> Azure CLI is not installed. Installing..."
 
-    if (-Not $IsWindows) {
-        Write-Error "Script currently only supports windows machines"
-        throw "Script currently only supports windows machines"
+    if ($IsWindows) {
+        Write-Host "Installing azure cli using winget..."
+        winget install -e --id Microsoft.AzureCLI
     }
 
-    winget install -e --id Microsoft.AzureCLI
+    if($IsMacOS){
+        Write-Host "Installing azure cli using brew..."
+        brew update && brew install azure-cli
+    }
+
+    if($IsLinux){
+        Write-Host "Installing azure cli using installation script..."
+        curl -L https://aka.ms/InstallAzureCli | bash
+    }
+
 
     if ($LASTEXITCODE -ne 0) {
         throw "Failed to find install azure cli"

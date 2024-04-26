@@ -1,0 +1,11 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "PowerShell: Launch devops-setup.ps1",
+      "type": "PowerShell",
+      "request": "launch",
+      "script": "${workspaceFolder}/azure-pipeline-samples/scripts/devops-setup-sample.ps1"
+    }
+  ]
+}
