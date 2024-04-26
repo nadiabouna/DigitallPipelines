@@ -11,8 +11,7 @@ resources:
     - repository: pipelinetemplates
       type: github
       name: DIGITALLNature/DigitallPipelines
-      endpoint: DIGITALL Pipelines Service Connection # TODO: Replace with your endpoint connection name
-      ref: refs/heads/feature/chaining # ! Replace for sample
+      endpoint: DIGITALL Pipelines Service Connection
 
       # By default the default branch is used. If this is not the same default between projects
       # (for most it is main, but for some it still is master) or a different one should be
@@ -25,9 +24,9 @@ resources:
     # Runs whenever the export solutions ran
     # > This requires the export solutions to be configured with matching name and tags
     - pipeline: export-solution-configuration
-      source: Export solutions # TODO: Replace with your pipeline name
+      source: Export solutions
       trigger:
-        tags: # TODO: Replace with your tag names
+        tags:
           - Environment_Development
           - Trigger_Release
 
@@ -37,7 +36,7 @@ pool:
 
 # Use existing variable template
 variables:
-  - template: ../deployment-settings/solution-configuration/solution-configuration.yml # TODO: Replace with your solution configuration
+  - template: ../../deployment-settings/solution-configuration/solution-configuration.yml
 
 # Extends from pipeline template that imports in stages
 extends:
@@ -45,23 +44,21 @@ extends:
   parameters:
     solutionList: ${{ variables.SolutionConfigList }}
     solutionListReverse: ${{ variables.SolutionConfigListReverse }}
-    triggerPipeline: Export solutions # TODO: Replace with your pipeline name
+    triggerPipeline: Export solutions
 
     # List of environments and information about them
     # Every environment will become its own stage in the pipeline
     environments:
 
-      # Sample configuration for a test environment
-      # TODO: Repeat for needed additional environments
       - friendlyName: Test
         uniqueName: test
-        serviceConnection: Power Platform Service Connection Test # TODO: Replace with your service connection name
+        serviceConnection: Power Platform Service Connection Test
         variables:
-          - group: Power Platform Environment Test # TODO: Replace with your variable group name
+          - group: Power Platform Environment Test
 
-      # Sample configuration for a prod environment
-      # TODO: Repeat or remove as needed
       - friendlyName: Production
         uniqueName: prod
-        serviceConnection: Power Platform Service Connection Production # TODO: Replace with your service connection name
-        devOpsEnvironment: Power Platform Environment Production # TODO: Replace with your variable group name
+        serviceConnection: Power Platform Service Connection Prod
+        devOpsEnvironment: Power Platform Environment Prod
+        variables:
+          - group: Power Platform Environment Prod

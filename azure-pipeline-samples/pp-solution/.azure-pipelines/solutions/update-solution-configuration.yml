@@ -20,8 +20,7 @@ resources:
     - repository: pipelinetemplates
       type: github
       name: DIGITALLNature/DigitallPipelines
-      endpoint: DIGITALL Pipelines Service Connection # TODO: Replace with your endpoint connection name
-      ref: refs/heads/feature/chaining # ! Replace for sample
+      endpoint: DIGITALL Pipelines Service Connection
 
       # By default the default branch is used. If this is not the same default between projects
       # (for most it is main, but for some it still is master) or a different one should be
@@ -34,24 +33,22 @@ pool:
   vmImage: ubuntu-latest
 
 parameters:
-  # After updating the solution configuration, trigger the export of the solutions with the new configuration
-  # > This requires the export pipeline to have a pipeline trigger for this pipeline filtered on the tag 'Trigger_Export'
+  # If changes are found the configuration file will be updated and potentially trigger the export
+  # > If set to true this will add the [skip ci] flag to the commit message
+  # > By default the export pipeline will trigger to any changes to the solution-configuration
+  # > Since the export pipeline by default is running nightly we set default to not trigger export
   - name: skipExport
     displayName: Skip export of solutions
     type: boolean
-    default: false
+    default: true
 
 # Use existing variable groups
 variables:
-  - group: Power Platform Environment Development # TODO: Replace with your variable group name
+  - group: Power Platform Environment Development
 
 # Extend from pipeline template that generates the solution configuration
 extends:
   template: azure-pipeline-templates/pp-solution-configuration/generate-from-carrier.yml@pipelinetemplates
   parameters:
-    serviceConnection: Power Platform Service Connection Development # TODO: Replace with your service connection name
-    customTags:
-      - Environment_Development # TODO: Replace with your custom tags
-      - ${{ if eq(parameters.skipExport, false) }}:
-        - Trigger_Export
-    skipCI: parameters.skipExport
+    serviceConnection: Power Platform Service Connection Development
+    skipCI: ${{ parameters.skipExport }}

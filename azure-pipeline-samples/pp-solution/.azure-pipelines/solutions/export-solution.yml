@@ -1,5 +1,5 @@
 # Export solution from solution configuration to current repository
-# Runs on a nightly schedule but scheduled after solution configuration was updated
+# Runs on a nightly schedule but scheduled after solution configuration ran
 
 # No automated trigger and also no schedule since a pipeline trigger is used
 trigger: 
@@ -10,6 +10,14 @@ trigger:
     include:
     - deployment-settings/solution-configuration/solution-configuration.yml
 
+# Trigger the pipeline automatically every night (at midnight UTC)
+schedules:
+  - cron: '0 1 * * *'
+    displayName: Start nightly solution export
+    branches:
+      include:
+        - main
+    always: true # Trigger even if there were no changes
 
 resources:
   repositories:
@@ -18,8 +26,8 @@ resources:
     - repository: pipelinetemplates
       type: github
       name: DIGITALLNature/DigitallPipelines
-      endpoint: DIGITALL Pipelines Service Connection # TODO: Replace with your endpoint connection name
-      ref: refs/heads/feature/chaining # ! Replace for sample
+      endpoint: DIGITALL Pipelines Service Connection
+      ref: refs/heads/feature/chaining
 
       # By default the default branch is used. If this is not the same default between projects
       # (for most it is main, but for some it still is master) or a different one should be
@@ -56,18 +64,18 @@ parameters:
 
 # Use existing variable groups and templates
 variables:
-  - group: Power Platform Environment Development # TODO: Replace with your variable group name
-  - template: ../deployment-settings/solution-configuration/solution-configuration.yml # TODO: Replace with your solution configuration
+  - group: Power Platform Environment Development
+  - template: ../../deployment-settings/solution-configuration/solution-configuration.yml
 
 # Extend from pipeline template that generates the solution configuration
 extends:
   template: azure-pipeline-templates/pp-solution-export/sync-fixed-jobs.yml@pipelinetemplates
   parameters:
-    serviceConnection: Power Platform Service Connection Development # TODO: Replace with your service connection name
+    serviceConnection: Power Platform Service Connection Development
     publish: ${{ parameters.publish }}
     onlySyncUpdatedSolutions: ${{ parameters.onlySyncUpdatedSolutions }}
     solutionList: ${{ variables.SolutionConfigList }}
     customTags:
-      - Environment_Development # TODO: Replace with your custom tags
+      - Environment_Development
       - ${{ if eq(parameters.triggerRelease, 'true') }}:
           - Trigger_Release
