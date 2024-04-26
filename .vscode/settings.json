@@ -26,5 +26,11 @@
         "sharepointonline",
         "testpipelines",
         "uniquename"
+    ],
+    "todo-tree.tree.scanMode": "workspace",
+    "todo-tree.filtering.includeHiddenFiles": true,
+    "todo-tree.filtering.excludeGlobs": [
+        "**/node_modules/*/**",
+        "**/.git/*/**"
     ]
 }

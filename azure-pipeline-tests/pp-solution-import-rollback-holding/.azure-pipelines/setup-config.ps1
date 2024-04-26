@@ -10,7 +10,7 @@ return @{
     GitHubServiceConnections        = @(
         @{
             Name = "(TEST CI) DIGITALL Pipelines Test";
-            Url  = "https://github.com/moberstein/DIGITALLPipelines"; # TODO! Change before merge
+            Url  = "https://github.com/DIGITALLNature/DIGITALLPipelines";
             Pat  = $ENV:GITHUB_PAT;
         }
     );
@@ -64,7 +64,7 @@ return @{
 
     PipelineSource                  = @{
         RepositoryType                        = "github";
-        RepositoryUrl                         = "https://github.com/moberstein/DIGITALLPipelines"; # TODO! Change before merge
+        RepositoryUrl                         = "https://github.com/DIGITALLNature/DIGITALLPipelines";
         RepositoryBranch                      = "main";
         RepositoryGitHubServiceConnectionName = "(TEST CI) DIGITALL Pipelines Test";
     };

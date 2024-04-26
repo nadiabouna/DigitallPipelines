@@ -1,4 +1,4 @@
-# Update cloud flows with owner and state according to configuration file
+# Update workflows with owner and state according to configuration file
 # Started manually
 
 # No automated trigger and also no schedule since a pipeline trigger is used
@@ -26,7 +26,7 @@ pool:
 parameters:
   # Choose which environment to target
   - name: environment
-    displayName: Environment to update cloud flows
+    displayName: Environment to update workflows
     type: string
     default: test
     values:
@@ -37,8 +37,12 @@ parameters:
 variables:
   - ${{ if eq(parameters.environment, 'test') }}:
     - group: Power Platform Environment Test
+    - name: ServiceConnection
+      value: Power Platform Service Connection Test
   - ${{ elseif eq(parameters.environment, 'prod') }}:
     - group: Power Platform Environment Prod
+    - name: ServiceConnection
+      value: Power Platform Service Connection Prod
 
 # Prepare auth and install tools and update workflow states
 steps:
@@ -47,9 +51,9 @@ steps:
   - template: azure-pipeline-templates/xrm-connection/build-connectionstring-from-service-connection.yml@pipelinetemplates
     parameters:
       outputVariableName: dgtp:xrm:connection
-      serviceConnection: Power Platform Service Connection
+      serviceConnection: $(ServiceConnection)
 
-  # Update cloud flows
+  # Update workflows
   - template: azure-pipeline-templates/dgtp-maintenance/set-workflow-state.yml@pipelinetemplates
     parameters:
       environmentUniqueName: ${{ parameters.environment }}
