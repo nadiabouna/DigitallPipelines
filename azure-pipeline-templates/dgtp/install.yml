@@ -17,7 +17,13 @@ steps:
     displayName: Install dgt.power
     inputs:
       targetType: inline
-      ${{ if eq(parameters.version, '') }}:
-        script: dotnet tool install --global dgt.power
+      ${{ if ne(parameters.version, '') }}:
+        script: |
+          Write-Host "##[warning]Using explicit version from parameter: ${{ parameters.version }}"
+          dotnet tool install --global dgt.power --version ${{ parameters.version }}
+      ${{ elseif ne(variables['DGTP.Version'], '') }}:
+        script: |
+          Write-Host "##[warning]Using explicit version from variable: ${{ parameters.version }}"
+          dotnet tool install --global dgt.power
       ${{ else }}:
-        script: dotnet tool install --global dgt.power --version ${{ parameters.version }}
+        script: dotnet tool install --global dgt.power
