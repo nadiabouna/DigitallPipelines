@@ -208,6 +208,7 @@ jobs:
                 inputs:
                   filePath: $(Agent.TempDirectory)/${{ parameters.deployToDynamics365InstancePath }}
                   workingDirectory: $(Agent.TempDirectory)
+                  arguments: -configuration ${{ parameters.eventPageConfiguration }}
 
         ${{ if eq(parameters.backup, 'true') }}:
           on:
