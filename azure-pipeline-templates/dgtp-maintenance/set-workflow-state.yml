@@ -18,6 +18,13 @@ parameters:
     type: string
     default: ''
 
+  # Name of unique environment
+  # Used to find matching config file
+  - name: environmentUniqueName
+    displayName: Environment unique name
+    type: string
+    default: ''
+
 steps:
   # Try and look for config file
   - task: PowerShell@2
@@ -60,6 +67,7 @@ steps:
     env:
       Debug: $(System.Debug)
       ConfigFilePath: ${{ parameters.config }}
+      EnvironmentUniqueName: ${{ parameters.environmentUniqueName }}
 
   # Execute dgtp
   - task: PowerShell@2

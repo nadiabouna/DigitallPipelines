@@ -91,7 +91,7 @@ steps:
       PowerPlatformUrl: $(PowerPlatformUrl)
 
   # Extract connection details from service connection
-  - task: PowerPlatformSetConnectionVariables@2
+  - task: PowerPlatformSetConnectionVariables@2.0.52
     name: ${{ parameters.connectionTaskName }}
     displayName: Prepare connection details
     inputs:
@@ -121,6 +121,10 @@ steps:
         if ($ServiceConnectionType -eq "PowerPlatformEnvironment") {
           Write-Host "##[debug]Replacing url in connection string"
           $PowerPlatformConnectionString = $PowerPlatformConnectionString -replace 'url=undefined', "url=$PowerPlatformUrl"
+        }
+
+        if ($Debug -eq $True) {
+          $PowerPlatformConnectionString -split ";"
         }
 
         Write-Host "##vso[task.setvariable variable=$OutputVariableName;issecret=true;isreadonly=true]$PowerPlatformConnectionString"

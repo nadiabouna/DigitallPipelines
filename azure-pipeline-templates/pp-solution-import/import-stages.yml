@@ -55,6 +55,18 @@ parameters:
     type: boolean
     default: true
 
+  # Path to solutions folder
+  - name: solutionFolder
+    displayName: Solution folder
+    type: string
+    default: '$(Build.Repository.LocalPath)/solutions'
+
+  # Continue on deployment failure
+  - name: continueOnDeploymentFailure
+    displayName: Continue on deployment failure
+    type: boolean
+    default: false
+
 stages:
   # Prepare solutions in separate stage
   - stage: prepare_solution_deployments
@@ -69,6 +81,7 @@ stages:
             solutionList: ${{ parameters.solutionList }}
             environment: ${{ environment }}
             triggerPipeline: ${{ parameters.triggerPipeline }}
+            solutionFolder: ${{ parameters.solutionFolder }}
 
         # Generate list of local solutions
         - template: ../pp-solution-version/generate-local-solution-list-job.yml
@@ -76,6 +89,7 @@ stages:
             jobName: ${{ environment.uniqueName }}_GenerateLocalSolutionList
             artifactName: ${{ environment.uniqueName }}_SolutionList_Local
             triggerPipeline: ${{ parameters.triggerPipeline }}
+            solutionDirectory: ${{ parameters.solutionFolder }}
 
       # TODO: Add job for solution checker etc.
 
@@ -110,6 +124,7 @@ stages:
             ${{ else }}:
               devOpsEnvironment: Power Platform Environment ${{ environment.friendlyName }}
             rollbackOnFailure: ${{ parameters.rollbackOnFailure }}
+            continueOnDeploymentFailure: ${{ parameters.continueOnDeploymentFailure }}
 
         # Post deployment jobs
         - job: ${{ environment.uniqueName }}_PostDeployment
@@ -132,8 +147,8 @@ stages:
                   definition: ${{ parameters.triggerPipeline }}
                   specificBuildWithTriggering: true
                   artifactName:  Export_Deployment_Settings
-                  itemPattern: '**/'
-                  targetPath: $(Build.Repository.LocalPath)
+                  itemPattern: '**/*'
+                  targetPath: $(Build.Repository.LocalPath)/deployment-settings
 
             # Prepare dgtp tooling
             - template: ../dgtp/install.yml
@@ -146,3 +161,5 @@ stages:
 
             # Update flow states
             - template: ../dgtp-maintenance/set-workflow-state.yml
+              parameters:
+                environmentUniqueName: ${{ environment.uniqueName }}

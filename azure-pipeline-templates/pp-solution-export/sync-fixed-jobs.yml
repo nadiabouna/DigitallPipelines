@@ -96,6 +96,7 @@ jobs:
       serviceConnectionType: ${{ parameters.serviceConnectionType }}
       localJobName: generateLocalSolutionList
       installedJobName: generateInstalledSolutionList
+      localSolutionDirectory: ${{ parameters.outputDirectory }}
       condition: and(succeeded(), eq('${{ parameters.onlySyncUpdatedSolutions }}', 'true'))
 
   # Compare solution versions so entire import jobs could be skipped
@@ -147,6 +148,8 @@ jobs:
         )
       variables:
         SolutionConfig_${{ solution }}_IsUpToDate: $[ dependencies.compareSolutionVersionsJob.outputs['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'] ]
+
+      timeoutInMinutes: $[coalesce(variables['SolutionConfigTimeout_Export'], 60)]
 
       steps:
         # Install Power Platform CLI and create auth profile

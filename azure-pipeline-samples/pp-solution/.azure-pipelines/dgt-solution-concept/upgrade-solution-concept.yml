@@ -31,18 +31,16 @@ resources:
 pool:
   vmImage: ubuntu-latest
 
-# Use default variable groups (see /docs/variable-groups.md) namely the variables:
+# Use existing variable groups namely the variables:
 # - PowerPlatformUrl
-# - PowerPlatformServiceConnectionName
 variables:
   - group: Power Platform Environment Development
-  - group: Power Platform Deployment Connection
 
 # Extends from pipeline template that upgrades solution concept
 extends:
   template: azure-pipeline-templates/dgt-solution-concept/import-upgrade.yml@pipelinetemplates
   parameters:
-    serviceConnection: $(PowerPlatformServiceConnectionName)
+    serviceConnection: Power Platform Service Connection Development
     environment:
       friendlyName: Development
       uniqueName: dev

@@ -68,15 +68,15 @@ steps:
         if ($env:Debug -eq $True) { Write-Host "##[debug]TargetSolutionsJson=$TargetSolutionsJson" }
         $TargetSolutionVersions = $TargetSolutionsJson | ConvertFrom-Json
 
-        Write-Host "##[debug]Get solution version to be imported"
-        $ImportSolution = $TargetSolutionVersions | Select-Object -ExpandProperty Results | Where-Object { $_.SolutionUniqueName -eq "$SolutionUniqueName" }
-        if ($ImportSolution) {
-          $TargetVersion = $ImportSolution | Select-Object -ExpandProperty VersionNumber
+        Write-Host "##[debug]Get target solution version"
+        $TargetSolution = $TargetSolutionVersions | Select-Object -ExpandProperty Results | Where-Object { $_.SolutionUniqueName -eq "$SolutionUniqueName" }
+        if ($TargetSolution) {
+          $TargetVersion = $TargetSolution | Select-Object -ExpandProperty VersionNumber
         } else {
           $TargetVersion = $null
         }
-        Write-Host "##[debug]Import solution version: $TargetVersion"
-        Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_ImportVersion;isoutput=true]$TargetVersion"
+        Write-Host "##[debug]Target solution version: $TargetVersion"
+        Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_TargetVersion;isoutput=true]$TargetVersion"
 
         Write-Host "##[debug]Get source solution version"
         $SourceSolution = $SourceSolutionVersions | Select-Object -ExpandProperty Results | Where-Object { $_.SolutionUniqueName -eq "$SolutionUniqueName" }

@@ -60,6 +60,12 @@ parameters:
       - PowerPlatformEnvironment
     default: PowerPlatformSPN
 
+  # Continue on deployment failure
+  - name: continueOnDeploymentFailure
+    displayName: Continue on deployment failure
+    type: boolean
+    default: false
+
 jobs:
   # Generate list of installed solutions
   - template: ../pp-solution-version/generate-installed-solution-list-job.yml
@@ -73,10 +79,14 @@ jobs:
   - deployment: deploy_${{ parameters.environment.uniqueName }}
     displayName: Deploy to ${{ parameters.environment.friendlyName }}
 
+    timeoutInMinutes: ${{ coalesce(variables['SolutionConfigTimeout_Deployment'], 0) }}
+
     environment: ${{ parameters.devOpsEnvironment }}
 
     dependsOn:
       - ${{ parameters.environment.uniqueName }}_GenerateInstalledSolutionList
+
+    continueOnError: ${{ parameters.continueOnDeploymentFailure }}
 
     strategy:
       runOnce:
@@ -138,7 +148,7 @@ jobs:
                   targetSolutionsPath: $(Pipeline.Workspace)/installed-solutions.json
 
               # Import solution
-              - task: PowerPlatformImportSolution@2
+              - task: PowerPlatformImportSolution@2.0.52
                 displayName: '${{ solution }}: Import'
                 condition: |
                   and(
@@ -159,6 +169,7 @@ jobs:
                   Environment: $(PowerPlatformUrl)
                   UseDeploymentSettingsFile: $(detectDeploymentSettingsFile.DeploymentSettingsFileExist)
                   DeploymentSettingsFile: $(detectDeploymentSettingsFile.DeploymentSettingsFile)
+                  MaxAsyncWaitTime: 180
 
               # Create rollback information
               - task: PowerShell@2
@@ -170,7 +181,7 @@ jobs:
                     $Debug = $env:Debug
                     $SolutionUniqueName = $env:SolutionUniqueName
                     $ImportAsHolding = $env:ImportAsHolding
-                    $InstalledVersion = $env:InstalledVersion
+                    $TargetVersion = $env:TargetVersion
 
                     if (!(Test-Path -Path "$(Build.ArtifactStagingDirectory)/rollback-instructions")) {
                       New-Item -Path "$(Build.ArtifactStagingDirectory)/rollback-instructions" -ItemType Directory
@@ -180,10 +191,10 @@ jobs:
                     $rollbackInstruction = if ($ImportAsHolding -eq $True) {
                       # If imported as holding rollback would be to uninstall upgrade solution
                       @{
-                        solutionUniqueName = "$SolutionUniqueName_Upgrade"
+                        solutionUniqueName = "$($SolutionUniqueName)_Upgrade"
                         rollbackType = "Uninstall"
                       }
-                    } elseif ("$InstalledVersion" -eq "") {
+                    } elseif ("$TargetVersion" -eq "") {
                       # If no holding and no prior version exist just uninstall the installed solution
                       @{
                         solutionUniqueName = "$SolutionUniqueName"
@@ -207,12 +218,12 @@ jobs:
                   Debug: $(System.Debug)
                   SolutionUniqueName: ${{ solution }}
                   ImportAsHolding: $(compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding)
-                  InstalledVersion: $(compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_InstalledVersion)
+                  TargetVersion: $(compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_TargetVersion)
 
             # Upgrade solutions
             - ${{ each solution in split(parameters.solutionList, ',') }}:
               # Upgrade solution
-              - task: PowerPlatformApplySolutionUpgrade@2
+              - task: PowerPlatformApplySolutionUpgrade@2.0.52
                 displayName: '${{ solution }}: Upgrade'
                 condition: |
                   and(
@@ -231,6 +242,7 @@ jobs:
                     PowerPlatformSPN: ${{ parameters.serviceConnection }}
                   SolutionName: ${{ solution }}
                   Environment: $(PowerPlatformUrl)
+                  MaxAsyncWaitTime: 180
 
               # Update rollback information
               - task: PowerShell@2
@@ -304,7 +316,10 @@ jobs:
                             Write-Host "##[debug]$rollbackInstructionJson"
                           }
 
+                          Write-Host "##[debug]Rollback Type: $($rollbackInstruction.rollbackType)"
+                          Write-Host "##[debug]Rollback Solution: $($rollbackInstruction.solutionUniqueName)"
                           Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_Rollback_Type]$($rollbackInstruction.rollbackType)"
+                          Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_Rollback_Solution]$($rollbackInstruction.solutionUniqueName)"
 
                           if ("$($rollbackInstruction.rollbackType)" -ne "Uninstall") {
                             Write-Host "##vso[task.logissue type=warning]No known rollback possible"
@@ -319,14 +334,14 @@ jobs:
                       SolutionUniqueName: ${{ solution }}
 
                   # Uninstall solution
-                  - task: PowerPlatformDeleteSolution@2
+                  - task: PowerPlatformDeleteSolution@2.0.52
                     displayName: '${{ solution }}: Uninstall'
-                    condition: and(succeeded(), eq(variables['SolutionConfig_${{ solution }}_RollbackType'], 'Uninstall'))
+                    condition: and(succeeded(), eq(variables['SolutionConfig_${{ solution }}_Rollback_Type'], 'Uninstall'))
                     inputs:
                       authenticationType: ${{ parameters.serviceConnectionType }}
                       ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
                         PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
                       ${{ else }}:
                         PowerPlatformSPN: ${{ parameters.serviceConnection }}
-                      SolutionName: ${{ solution }}
+                      SolutionName: $(SolutionConfig_${{ solution }}_Rollback_Solution)
                       Environment: $(PowerPlatformUrl)

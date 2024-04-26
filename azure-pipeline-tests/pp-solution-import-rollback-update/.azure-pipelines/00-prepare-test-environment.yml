@@ -1,0 +1,109 @@
+# Part 00 of test scenario "No rollback patch update"
+# - Delete solutions on the test environment if they are installed
+# - Import base solution in version 1.0.0.0
+# - Import patch in version 1.0.1.0
+
+# No automated trigger
+trigger: none
+
+resources:
+  repositories:
+    - repository: pipelinetemplates
+      type: github
+      name: DIGITALLNature/DigitallPipelines
+      endpoint: "(TEST CI) DIGITALL Pipelines Test"
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: "(TEST CI) Test Solution Url"
+  - template: ../deployment-settings/solution-configuration/solution-configuration.yml
+
+jobs:
+  # Delete solutions that are still installed
+  - job: delete_solutions
+    displayName: "Delete solutions"
+    steps:
+      # Install Power Platform CLI and create auth profile
+      - template: azure-pipeline-templates/pac/install.yml@pipelinetemplates
+      - template: azure-pipeline-templates/pac-auth/create-from-service-connection.yml@pipelinetemplates
+        parameters:
+          serviceConnection: "(TEST CI) Test Solution Conn"
+
+      # Load installed solution versions
+      - template: azure-pipeline-templates/pp-solution-version/generate-installed-solution-list.yml@pipelinetemplates
+        parameters:
+          outputDirectory: $(Build.ArtifactStagingDirectory)
+
+      # Remove all solutions that should be part of import later on
+      - ${{ each solution in split(variables.SolutionConfigListReverse, ',') }}:
+
+        # Compare with empty local list (only interested if installed exists)
+        - template: azure-pipeline-templates/pp-solution-version/compare-solution-version.yml@pipelinetemplates
+          parameters:
+            solution: ${{ solution }}
+            sourceSolutionsPath: $(Build.Repository.LocalPath)/azure-pipeline-tests/pp-solution-import-rollback-update/deployment-settings/local-solutions.json
+            targetSolutionsPath: $(Build.ArtifactStagingDirectory)/installed-solutions.json
+
+        # Uninstall solution if exists
+        - task: PowerPlatformDeleteSolution@2
+          displayName: Uninstall solution ${{ solution }}
+          condition: and(succeeded(), ne(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_TargetVersion'], ''))
+          inputs:
+            authenticationType: PowerPlatformSPN
+            PowerPlatformSPN: (TEST CI) Test Solution Conn
+            SolutionName: ${{ solution }}
+            Environment: $(PowerPlatformUrl)
+
+  # Prepare base solutions zip
+  - template: azure-pipeline-templates/pp-solution-build/build-default-artifact.yml@pipelinetemplates
+    parameters:
+      solutionList: test_ci_pp_solution_import_rollback_update,test_ci_pp_solution_import_rollback_update_Patch_1ed0b826
+      environment:
+        uniqueName: test_ci
+        friendlyName: Test CI
+      solutionFolder: $(Build.Repository.LocalPath)/azure-pipeline-tests/pp-solution-import-rollback-update/solutions-1
+
+  # Import base solutions required for importing patch
+  - job: import_base_solutions
+    displayName: "Import base solution"
+    dependsOn: prepare_test_ci_solutions
+    steps:
+      # No sources required
+      - checkout: none
+
+      # Install Power Platform CLI and create auth profile
+      - template: azure-pipeline-templates/pac/install.yml@pipelinetemplates
+      - template: azure-pipeline-templates/pac-auth/create-from-service-connection.yml@pipelinetemplates
+        parameters:
+          serviceConnection: "(TEST CI) Test Solution Conn"
+
+      # Don't load all artifacts
+      - download: none
+
+      # Load solution files
+      - task: DownloadPipelineArtifact@2
+        displayName: Download solution files
+        inputs:
+          artifact: test_ci_Solutions
+          path: $(Pipeline.Workspace)
+
+      # Import solution
+      - task: PowerPlatformImportSolution@2
+        displayName: Import solution test_ci_pp_solution_import_rollback_update
+        inputs:
+          authenticationType: PowerPlatformSPN
+          PowerPlatformSPN: (TEST CI) Test Solution Conn
+          SolutionInputFile: $(Pipeline.Workspace)/test_ci_pp_solution_import_rollback_update.zip
+          Environment: $(PowerPlatformUrl)
+          path: $(Pipeline.Workspace)
+
+      # Import solution
+      - task: PowerPlatformImportSolution@2
+        displayName: Import solution test_ci_pp_solution_import_rollback_update_Patch_1ed0b826
+        inputs:
+          authenticationType: PowerPlatformSPN
+          PowerPlatformSPN: (TEST CI) Test Solution Conn
+          SolutionInputFile: $(Pipeline.Workspace)/test_ci_pp_solution_import_rollback_update_Patch_1ed0b826.zip
+          Environment: $(PowerPlatformUrl)
