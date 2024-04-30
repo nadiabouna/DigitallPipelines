@@ -46,7 +46,7 @@ jobs:
             targetSolutionsPath: $(Build.ArtifactStagingDirectory)/installed-solutions.json
 
         # Uninstall solution if exists
-        - task: PowerPlatformDeleteSolution@2
+        - task: PowerPlatformDeleteSolution@2.0.63
           displayName: Uninstall solution ${{ solution }}
           condition: and(succeeded(), ne(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_TargetVersion'], ''))
           inputs:
@@ -91,7 +91,7 @@ jobs:
           path: $(Pipeline.Workspace)
 
       # Import solution if not installed
-      - task: PowerPlatformImportSolution@2
+      - task: PowerPlatformImportSolution@2.0.63
         displayName: Import solution rollback_upgraded
         inputs:
           authenticationType: PowerPlatformSPN
@@ -100,7 +100,7 @@ jobs:
           Environment: $(PowerPlatformUrl)
 
       # Import solution if not installed
-      - task: PowerPlatformImportSolution@2
+      - task: PowerPlatformImportSolution@2.0.63
         displayName: Import solution rollback_upgrade_fail
         inputs:
           authenticationType: PowerPlatformSPN

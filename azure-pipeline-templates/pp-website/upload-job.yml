@@ -67,7 +67,7 @@ jobs:
           addToPath: false
 
       # Download website content
-      - task: PowerPlatformDownloadPaportal@2.0.52
+      - task: PowerPlatformDownloadPaportal@2.0.63
         displayName: Download portal
         inputs:
           authenticationType: ${{ parameters.serviceConnectionType }}
@@ -112,7 +112,7 @@ jobs:
                 addToPath: false
 
             # Upload portal
-            - task: PowerPlatformUploadPaportal@2.0.52
+            - task: PowerPlatformUploadPaportal@2.0.63
               displayName: Upload portal
               inputs:
                 authenticationType: ${{ parameters.serviceConnectionType }}
@@ -138,7 +138,7 @@ jobs:
                     addToPath: false
 
                 # Upload portal
-                - task: PowerPlatformUploadPaportal@2.0.52
+                - task: PowerPlatformUploadPaportal@2.0.63
                   displayName: Upload portal
                   inputs:
                     authenticationType: ${{ parameters.serviceConnectionType }}

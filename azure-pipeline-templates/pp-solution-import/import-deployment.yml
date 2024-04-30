@@ -148,7 +148,7 @@ jobs:
                   targetSolutionsPath: $(Pipeline.Workspace)/installed-solutions.json
 
               # Import solution
-              - task: PowerPlatformImportSolution@2.0.52
+              - task: PowerPlatformImportSolution@2.0.63
                 displayName: '${{ solution }}: Import'
                 condition: |
                   and(
@@ -223,7 +223,7 @@ jobs:
             # Upgrade solutions
             - ${{ each solution in split(parameters.solutionList, ',') }}:
               # Upgrade solution
-              - task: PowerPlatformApplySolutionUpgrade@2.0.52
+              - task: PowerPlatformApplySolutionUpgrade@2.0.63
                 displayName: '${{ solution }}: Upgrade'
                 condition: |
                   and(
@@ -334,7 +334,7 @@ jobs:
                       SolutionUniqueName: ${{ solution }}
 
                   # Uninstall solution
-                  - task: PowerPlatformDeleteSolution@2.0.52
+                  - task: PowerPlatformDeleteSolution@2.0.63
                     displayName: '${{ solution }}: Uninstall'
                     condition: and(succeeded(), eq(variables['SolutionConfig_${{ solution }}_Rollback_Type'], 'Uninstall'))
                     inputs:

@@ -45,7 +45,7 @@ jobs:
       - template: ../pac/install.yml
 
       # Publish all customizations
-      - task: PowerPlatformPublishCustomizations@2.0.52
+      - task: PowerPlatformPublishCustomizations@2.0.63
         displayName: Publish customizations
         inputs:
           authenticationType: ${{ parameters.serviceConnectionType }}
