@@ -165,7 +165,10 @@ jobs:
                   ${{ else }}:
                     PowerPlatformSPN: ${{ parameters.serviceConnection }}
                   SolutionInputFile: $(Pipeline.Workspace)/${{ solution }}.zip
-                  HoldingSolution: $(compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding)
+                  ${{ if eq(parameters.rollbackOnFailure, 'true')}}:
+                    HoldingSolution: $(compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding)
+                  ${{ else }}:
+                    StageAndUpgrade: $(compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding)
                   Environment: $(PowerPlatformUrl)
                   UseDeploymentSettingsFile: $(detectDeploymentSettingsFile.DeploymentSettingsFileExist)
                   DeploymentSettingsFile: $(detectDeploymentSettingsFile.DeploymentSettingsFile)
@@ -182,13 +185,14 @@ jobs:
                     $SolutionUniqueName = $env:SolutionUniqueName
                     $ImportAsHolding = $env:ImportAsHolding
                     $TargetVersion = $env:TargetVersion
+                    $RollbackOnFailure = $env:RollbackOnFailure
 
                     if (!(Test-Path -Path "$(Build.ArtifactStagingDirectory)/rollback-instructions")) {
                       New-Item -Path "$(Build.ArtifactStagingDirectory)/rollback-instructions" -ItemType Directory
                       Write-Host "##[debug]Created rollback instructions directory"
                     }
 
-                    $rollbackInstruction = if ($ImportAsHolding -eq $True) {
+                    $rollbackInstruction = if ($ImportAsHolding -eq $True -and $RollbackOnFailure -eq $True) {
                       # If imported as holding rollback would be to uninstall upgrade solution
                       @{
                         solutionUniqueName = "$($SolutionUniqueName)_Upgrade"
@@ -219,6 +223,7 @@ jobs:
                   SolutionUniqueName: ${{ solution }}
                   ImportAsHolding: $(compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding)
                   TargetVersion: $(compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_TargetVersion)
+                  RollbackOnFailure: ${{ parameters.rollbackOnFailure }}
 
             # Upgrade solutions
             - ${{ each solution in split(parameters.solutionList, ',') }}:
@@ -228,7 +233,10 @@ jobs:
                 condition: |
                   and(
                     succeeded(),
-                    eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding'], 'true'),
+                    and(
+                      eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding'], 'true'),
+                      eq(${{ parameters.rollbackOnFailure }}, 'true')
+                    ),
                     or(
                       eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'], 'false'),
                       eq(${{ parameters.forceImport }}, 'true')
@@ -247,7 +255,13 @@ jobs:
               # Update rollback information
               - task: PowerShell@2
                 displayName: '${{ solution }}: Track rollback information'
-                condition: and(succeeded(), eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding'], 'true'), eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'], 'false'))
+                condition: |
+                  and(
+                    succeeded(),
+                    eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding'], 'true'),
+                    eq(${{ parameters.rollbackOnFailure }}, 'true'),
+                    eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'], 'false')
+                  )
                 inputs:
                   targetType: inline
                   script: |
