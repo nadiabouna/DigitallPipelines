@@ -86,7 +86,7 @@ jobs:
           addToPath: false
 
       # Download website content
-      - task: PowerPlatformDownloadPaportal@2
+      - task: PowerPlatformDownloadPaportal@2.0.63
         displayName: Download portal
         inputs:
           authenticationType: PowerPlatformSPN
@@ -186,7 +186,7 @@ jobs:
 
             - ${{ if eq(parameters.uploadPortalContent, 'true') }}:
               # Upload portal content
-              - task: PowerPlatformUploadPaportal@2
+              - task: PowerPlatformUploadPaportal@2.0.63
                 displayName: Upload portal
                 inputs:
                   authenticationType: PowerPlatformSPN
@@ -224,7 +224,7 @@ jobs:
                     addToPath: false
 
                 # Upload portal content
-                - task: PowerPlatformUploadPaportal@2
+                - task: PowerPlatformUploadPaportal@2.0.63
                   displayName: Upload portal
                   inputs:
                     authenticationType: PowerPlatformSPN
