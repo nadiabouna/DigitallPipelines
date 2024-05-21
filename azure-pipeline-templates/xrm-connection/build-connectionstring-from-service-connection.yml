@@ -91,7 +91,7 @@ steps:
       PowerPlatformUrl: $(PowerPlatformUrl)
 
   # Extract connection details from service connection
-  - task: PowerPlatformSetConnectionVariables@2.0.69
+  - task: PowerPlatformSetConnectionVariables@2.0.70
     name: ${{ parameters.connectionTaskName }}
     displayName: Prepare connection details
     inputs:

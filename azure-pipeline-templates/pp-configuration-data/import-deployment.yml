@@ -74,7 +74,7 @@ jobs:
           addToPath: false
 
       # Export configuration data
-      - task: PowerPlatformExportData@2.0.69
+      - task: PowerPlatformExportData@2.0.70
         displayName: Export configuration data
         inputs:
           authenticationType: ${{ parameters.serviceConnectionType }}
