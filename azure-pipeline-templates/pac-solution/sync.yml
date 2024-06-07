@@ -41,7 +41,7 @@ steps:
         }
 
         Write-Host "##[group]Syncing solution $SolutionUniqueName"
-        pac solution sync --async --packagetype Both --processCanvasApps
+        pac solution sync --async --packagetype Both
         Write-Host "##[endgroup]"
     env:
       Debug: $(System.Debug)
