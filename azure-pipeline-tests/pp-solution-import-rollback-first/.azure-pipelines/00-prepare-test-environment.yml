@@ -41,7 +41,7 @@ steps:
         targetSolutionsPath: $(Build.ArtifactStagingDirectory)/installed-solutions.json
 
     # Uninstall solution if exists
-    - task: PowerPlatformDeleteSolution@2.0.70
+    - task: PowerPlatformDeleteSolution@2.0.71
       displayName: Uninstall solution ${{ solution }}
       condition: and(succeeded(), ne(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_TargetVersion'], ''))
       inputs:
