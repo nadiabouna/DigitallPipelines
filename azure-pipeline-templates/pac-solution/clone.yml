@@ -34,16 +34,29 @@ steps:
         $Debug = $env:Debug
         $SolutionUniqueName = $env:SolutionUniqueName
         $WorkingDirectory = $env:WorkingDirectory
+        $ProcessCanvasApps = $env:ProcessCanvasApps
 
         if ($Debug -eq $True) {
           Write-Host "##[debug]SolutionUniqueName=$SolutionUniqueName"
           Write-Host "##[debug]WorkingDirectory=$WorkingDirectory"
+          Write-Host "##[debug]ProcessCanvasApps=$ProcessCanvasApps"
+        }
+
+        $parameter = @(
+          "--name", "$SolutionUniqueName",
+          "--async",
+          "--packagetype", "Both"
+        )
+
+        if ($ProcessCanvasApps -eq $True) {
+          $parameter += "--processCanvasApps"
         }
 
         Write-Host "##[group]Cloning solution $SolutionUniqueName"
-        pac solution clone --name $SolutionUniqueName --async --processCanvasApps
+        & pac solution clone @parameter
         Write-Host "##[endgroup]"
     env:
       Debug: $(System.Debug)
       SolutionUniqueName: ${{ parameters.solutionUniqueName }}
       WorkingDirectory: ${{ parameters.outputDirectory }}
+      ProcessCanvasApps: $(SolutionConfigProcessCanvasApps_Export)
