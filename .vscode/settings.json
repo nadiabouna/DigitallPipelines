@@ -26,7 +26,8 @@
         "setvariable",
         "sharepointonline",
         "testpipelines",
-        "uniquename"
+        "uniquename",
+        "unmanaged"
     ],
     "todo-tree.tree.scanMode": "workspace",
     "todo-tree.filtering.includeHiddenFiles": true,

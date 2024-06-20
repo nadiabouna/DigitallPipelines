@@ -28,6 +28,12 @@ parameters:
     type: boolean
     default: false
 
+  # Set configuration to import solutions unmanaged
+  - name: importManaged
+    displayName: Set configuration to import as managed
+    type: boolean
+    default: true
+
   # ----- Optional parameters -----
 
   # Type of service connection
@@ -62,6 +68,7 @@ steps:
   - template: ../pp-solution-configuration/generate-from-carrier-file.yml
     parameters:
       solutionConfigurationPath: ${{ parameters.solutionConfigurationPath }}
+      importManaged: ${{ parameters.importManaged }}
 
   # Stage, commit and push changes
   - template: ../git/quick-commit-push.yml
