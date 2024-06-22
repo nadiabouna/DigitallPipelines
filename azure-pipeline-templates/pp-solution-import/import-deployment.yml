@@ -172,7 +172,7 @@ jobs:
                   Environment: $(PowerPlatformUrl)
                   UseDeploymentSettingsFile: $(detectDeploymentSettingsFile.DeploymentSettingsFileExist)
                   DeploymentSettingsFile: $(detectDeploymentSettingsFile.DeploymentSettingsFile)
-                  MaxAsyncWaitTime: 180
+                  MaxAsyncWaitTime: 300
 
               # Create rollback information
               - task: PowerShell@2
@@ -250,7 +250,7 @@ jobs:
                     PowerPlatformSPN: ${{ parameters.serviceConnection }}
                   SolutionName: ${{ solution }}
                   Environment: $(PowerPlatformUrl)
-                  MaxAsyncWaitTime: 180
+                  MaxAsyncWaitTime: 300
 
               # Update rollback information
               - task: PowerShell@2
