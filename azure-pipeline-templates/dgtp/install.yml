@@ -11,6 +11,12 @@ parameters:
     type: string
     default: ''
 
+  # Include prerelease versions (e.g. beta)
+  - name: preRelease
+    displayName: Include prerelease versions
+    type: boolean
+    default: false
+
 steps:
   # Install dgtp tooling
   - task: PowerShell@2
@@ -25,5 +31,7 @@ steps:
         script: |
           Write-Host "##[warning]Using explicit version from variable: ${{ parameters.version }}"
           dotnet tool install --global dgt.power
+      ${{ elseif eq(parameters.preRelease, true) }}:
+        script: dotnet tool install --global dgt.power --prerelease
       ${{ else }}:
         script: dotnet tool install --global dgt.power
