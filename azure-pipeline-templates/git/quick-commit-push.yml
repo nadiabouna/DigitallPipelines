@@ -1,0 +1,90 @@
+# Runs all necessary git steps to commit and push changes to the repository
+
+parameters:
+  # ----- Optional predefined parameters -----
+
+  # Path to the git repository
+  - name: path
+    displayName: Path to git repository
+    type: string
+    default: '$(Build.Repository.LocalPath)'
+
+  # ----- Configure: optional predefined parameters -----
+
+  # Will be used for git user.email
+  - name: userMail
+    displayName: Git user mail used for commits
+    type: string
+    default: info@digitall.com
+
+  # Will be used for git user.name
+  - name: userName
+    displayName: Git user name used for commits
+    type: string
+    default: pipeline
+
+  # -----Stage: optional predefined parameters -----
+
+  # Option to ignore project file changes. If no sync is used there is a high chance that
+  #   the project guid in the project file changes but nothing else.
+  # Setting this to true will ignore changes if this is the only change
+  - name: ignoreProjectFileChanges
+    displayName: Ignore changes on cdsproj files if they are the only changes
+    type: boolean
+    default: false
+
+  # ----- Commit: optional feature parameters -----
+
+  # Commit message
+  - name: commitMessage
+    displayName: Commit message
+    default: Update from pipeline
+    type: string
+
+  # Optional git tag name, if this is set a tag will be created for the commit
+  - name: gitTag
+    displayName: Git tag name
+    type: string
+    default: ''
+
+  # Git tag message. Will only be used if gitTag is set
+  - name: gitTagMessage
+    displayName: Git tag message
+    type: string
+    default: ''
+
+  # ----- Push: optional predefined parameters -----
+
+  # Branch to push
+  - name: branch
+    displayName: Branch to push
+    type: string
+    default: main
+  
+  # Remote name
+  - name: remoteName
+    displayName: Remote name
+    type: string
+    default: origin
+
+steps:
+  - template: ../git/configure.yml
+    parameters:
+      userMail: ${{ parameters.userMail }}
+      userName: ${{ parameters.userName }}
+      path: ${{ parameters.path }}
+  - template: ../git/stage.yml
+    parameters:
+      path: ${{ parameters.path }}
+      ignoreProjectFileChanges: ${{ parameters.ignoreProjectFileChanges }}
+  - template: ../git/commit.yml
+    parameters:
+      commitMessage: ${{ parameters.commitMessage }}
+      path: ${{ parameters.path }}
+      gitTag: ${{ parameters.gitTag }}
+      gitTagMessage: ${{ parameters.gitTagMessage }}
+  - template: ../git/push.yml
+    parameters:
+      path: ${{ parameters.path }}
+      branch: ${{ parameters.branch }}
+      remoteName: ${{ parameters.remoteName }}

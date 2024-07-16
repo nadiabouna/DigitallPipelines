@@ -1,0 +1,91 @@
+# Commit staged changes to given git repository
+#
+# If a gitTag is set, a tag will be created for the created commit
+# If the condition is not overridden this will only run if the UncommittedChanges variable is set
+#
+# This will update two global variables:
+# - UncommittedChanges: Will be reset to false
+# - LocalChanges: Will be set to true
+#
+# Prerequisites:
+# - Git must be configured for use (e.g. git/configure.yml)
+
+parameters:
+  # ----- Optional feature parameters -----
+
+  # Commit message
+  - name: commitMessage
+    displayName: Commit message
+    default: Update from pipeline
+    type: string
+
+  # Optional git tag name, if this is set a tag will be created for the commit
+  - name: gitTag
+    displayName: Git tag name
+    type: string
+    default: ''
+
+  # Git tag message. Will only be used if gitTag is set
+  - name: gitTagMessage
+    displayName: Git tag message
+    type: string
+    default: ''
+
+  # ----- Optional predefined parameters -----
+
+  # Path to git repository
+  - name: path
+    displayName: Path to git repository
+    type: string
+    default: $(Build.Repository.LocalPath)
+
+  # Option to overwrite the condition for this task
+  - name: condition
+    displayName: Overwrite condition for task
+    type: string
+    default: and(succeeded(), eq(variables.UncommittedChanges, 'true'))
+
+steps:
+  # Commit staged changes and optionally create a tag
+  - task: PowerShell@2
+    condition: ${{ parameters.condition }}
+    displayName: 'Git: Commit changes'
+    inputs:
+      targetType: inline
+      workingDirectory: ${{ parameters.path }}
+      script: |
+        $Debug = $env:Debug
+        $CommitMessage = $env:CommitMessage
+        $GitTag = $env:GitTag
+        $GitTagMessage = $env:GitTagMessage
+        $WorkingDirectory = $env:WorkingDirectory
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]CommitMessage=$CommitMessage"
+          Write-Host "##[debug]GitTag=$GitTag"
+          Write-Host "##[debug]GitTagMessage=$GitTagMessage"
+          Write-Host "##[debug]WorkingDirectory=$WorkingDirectory"
+        }
+
+        # Commit changes
+        git commit -m "$CommitMessage"
+
+        Write-Host "##vso[task.setvariable variable=UncommittedChanges]false"
+
+        if ("$GitTag" -ne "") {
+          # Get existing tags with same name
+          $existingTags = $(git tag -l $GitTag | Measure-Object)
+
+          # Create tag if it does not exist
+          if ($existingTags.Count -gt 0) {
+            Write-Host "##vso[task.logissue type=warning]Git tag '$GitTag' already exists"
+          } else {
+            git tag -a $GitTag -m "$GitTagMessage"
+          }
+        }
+    env:
+      Debug: $(System.Debug)
+      CommitMessage: ${{ parameters.commitMessage }}
+      GitTag: ${{ parameters.gitTag }}
+      GitTagMessage: ${{ parameters.gitTagMessage }}
+      WorkingDirectory: ${{ parameters.path }}

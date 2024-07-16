@@ -1,0 +1,37 @@
+{
+    "cSpell.words": [
+        "addbuildtag",
+        "carrierinfo",
+        "cdsproj",
+        "commondataserviceforapps",
+        "connectionstring",
+        "dataverse",
+        "dgtp",
+        "DIGITALL",
+        "digitallpipelinetemplates",
+        "endgroup",
+        "filedir",
+        "isoutput",
+        "isreadonly",
+        "issecret",
+        "logissue",
+        "myenvironment",
+        "PACCLIPATH",
+        "Paportal",
+        "pipelinetemplates",
+        "Powerapps",
+        "powerplatform",
+        "POWERPLATFORMTOOLS",
+        "prependpath",
+        "setvariable",
+        "sharepointonline",
+        "testpipelines",
+        "uniquename"
+    ],
+    "todo-tree.tree.scanMode": "workspace",
+    "todo-tree.filtering.includeHiddenFiles": true,
+    "todo-tree.filtering.excludeGlobs": [
+        "**/node_modules/*/**",
+        "**/.git/*/**"
+    ]
+}

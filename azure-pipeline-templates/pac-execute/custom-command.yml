@@ -1,0 +1,97 @@
+# Execute a custom Power Platform CLI command
+#
+# Prerequisites:
+# - Power Platform CLI installed (e.g. pac/install*.yml)
+# - Power Platform CLI authenticated (e.g. pac-auth/create*.yml)
+
+parameters:
+  # ----- Required parameters -----
+  
+  # Arguments list that will be passed to the Power Platform CLI
+  - name: arguments
+    displayName: Arguments for Power Platform CLI (comma separated)
+    type: string
+
+  # ----- Optional feature parameters -----
+
+  # Override default condition for task execution
+  - name: condition
+    displayName: Overwrite condition for task
+    type: string
+    default: succeeded()
+
+  # Override task display name
+  - name: displayName
+    displayName: Overwrite task display name
+    type: string
+    default: 'Run Power Platform CLI command'
+
+  # ----- Optional predefined parameters -----
+
+  # Output file where response should be located
+  - name: outputFile
+    displayName: Output file
+    type: string
+    default: $(Agent.TempDirectory)/pacExecuteResponse.json
+
+steps:
+  # Create a process and execute the Power Platform CLI with given arguments
+  # Result will be written to the given output path if it exists as well as to an variable
+  - task: PowerShell@2
+    displayName: ${{ parameters.displayName }}
+    condition: ${{ parameters.condition }}
+    inputs:
+      targetType: inline
+      script: |
+        $Debug = $env:Debug
+        $PacArguments = $env:PacArguments
+        $OutputFile = $env:OutputFile
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]Arguments=$PacArguments"
+          Write-Host "##[debug]OutputFile=$OutputFile"
+        }
+
+        $command = @{
+          Arguments = @("$PacArguments" -split ",")
+        }
+        $jsonCommand = $command | ConvertTo-Json -Compress
+
+        $processInfo = New-Object System.Diagnostics.ProcessStartInfo
+        $processInfo.FileName = "pac"
+        $processInfo.RedirectStandardError = $true
+        $processInfo.RedirectStandardOutput = $true
+        $processInfo.RedirectStandardInput = $true
+        $processInfo.UseShellExecute = $false
+        $processInfo.Arguments = "--non-interactive"
+        $process = New-Object System.Diagnostics.Process
+        $process.StartInfo = $ProcessInfo
+        $process.Start() | Out-Null
+
+        $versionInfo = $process.StandardOutput.ReadLine()
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]Power Platform CLI version: $versionInfo"
+        }
+
+        $process.StandardInput.WriteLine($jsonCommand)
+
+        $response = $process.StandardOutput.ReadLine()
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]Response: $response"
+        }
+
+        $responseData = $response | ConvertFrom-Json
+
+        if ($responseData.Status -eq "Failure") {
+            throw $responseData.Errors
+        }
+
+        if ("$OutputFile" -ne "") {
+          $response | Out-File -FilePath "$OutputFile" -Encoding UTF8
+        }
+    env:
+      Debug: $(System.Debug)
+      PacArguments: ${{ parameters.arguments }}
+      OutputFile: ${{ parameters.outputFile }}

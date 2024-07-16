@@ -1,0 +1,44 @@
+# Export solution carrier information as a json
+#
+# Prerequisites:
+# - Solution concept is installed in target environment
+# - dgtp tooling installed (e.g. ../dgtp/install*.yml)
+# - dgtp connection string 'dgtp:xrm:connection' available
+
+parameters:
+  # ----- Optional predefined parameters -----
+
+  # Output directory
+  - name: filedir
+    displayName: Full path to the file dir
+    type: string
+    default: $(Agent.TempDirectory)
+
+  # Output file name
+  - name: filename
+    displayName: Output file name, default is carrier.json
+    type: string
+    default: carrier.json
+
+steps:
+  # Export carrier information
+  - task: PowerShell@2
+    displayName: Export carrier information
+    inputs:
+      targetType: inline
+      script: |
+        $Debug = $env:Debug
+        $FileDir = $env:FileDir
+        $FileName = $env:FileName
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]FileDir=$FileDir"
+          Write-Host "##[debug]FileName=$FileName"
+        }
+
+        dgtp maintenance carrierinfo --filedir "$FileDir" --filename "$FileName"
+    env:
+      Debug: $(System.Debug)
+      FileDir: ${{ parameters.filedir }}
+      FileName: ${{ parameters.filename }}
+      dgtp:xrm:connection: $(dgtp:xrm:connection)

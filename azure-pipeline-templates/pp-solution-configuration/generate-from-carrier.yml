@@ -1,0 +1,86 @@
+# Create solution configuration from active carriers
+
+parameters:
+  # ----- Required parameters -----
+
+  # Service connection to the target environment
+  - name: serviceConnection
+    displayName: Service Connection
+    type: string
+
+  # ----- Optional predefined parameters -----
+
+  # File path to write solution configuration to
+  - name: solutionConfigurationPath
+    displayName: Solution Configuration Path
+    type: string
+    default: '$(Build.Repository.LocalPath)/deployment-settings/solution-configuration/solution-configuration.yml'
+
+  # Custom tags to tag pipeline with
+  - name: customTags
+    displayName: Custom tags
+    type: object
+    default:
+      - Environment_Development
+
+  - name: skipCI
+    displayName: Commit can trigger CI
+    type: boolean
+    default: false
+
+  # ----- Optional parameters -----
+
+  # Type of service connection
+  - name: serviceConnectionType
+    displayName: Service connection type
+    type: string
+    values:
+      - PowerPlatformSPN
+      - PowerPlatformEnvironment
+    default: PowerPlatformSPN
+
+steps:
+  # Checkout repository
+  - checkout: self
+    persistCredentials: true
+    clean: true
+
+  # Install dgtp tooling
+  - template: ../dgtp/install.yml
+
+  # Create connectionstring and set env variable for dgtp
+  - template: ../xrm-connection/build-connectionstring-from-service-connection.yml
+    parameters:
+      outputVariableName: dgtp:xrm:connection
+      serviceConnection: ${{ parameters.serviceConnection }}
+      serviceConnectionType: ${{ parameters.serviceConnectionType }}
+
+  # Export carrier information
+  - template: ../dgtp-maintenance/export-carrier-info.yml
+
+  # Convert carrier information to solution configuration
+  - template: ../pp-solution-configuration/generate-from-carrier-file.yml
+    parameters:
+      solutionConfigurationPath: ${{ parameters.solutionConfigurationPath }}
+
+  # Stage, commit and push changes
+  - template: ../git/quick-commit-push.yml
+    parameters:
+      ${{ if eq(parameters.skipCI, false) }}:
+        commitMessage: "Update solution carriers"
+      ${{ if eq(parameters.skipCI, true) }}:
+        commitMessage: "Update solution carriers [skip ci]"
+
+  # Add pipeline tags
+  - template: ../az-pipeline/add-build-tags.yml
+    parameters:
+      displayName: Add solution configuration tags
+      tags: ${{ parameters.customTags }}
+
+  # Add pipeline tag for changes
+  - template: ../az-pipeline/add-build-tags.yml
+    parameters:
+      displayName: Add pipeline changes tag
+      condition: and(succeeded(), eq(variables.LocalChanges, 'true'))
+      tags:
+        - Changes

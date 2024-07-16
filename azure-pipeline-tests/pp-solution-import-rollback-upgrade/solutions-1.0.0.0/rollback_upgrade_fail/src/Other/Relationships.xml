@@ -1,0 +1,10 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<EntityRelationships xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
+  <EntityRelationship Name="dgt_testci_dependent_base_dgt_testci_base" />
+  <EntityRelationship Name="lk_dgt_testci_base_createdby" />
+  <EntityRelationship Name="lk_dgt_testci_base_modifiedby" />
+  <EntityRelationship Name="lk_dgt_testci_dependent_createdby" />
+  <EntityRelationship Name="lk_dgt_testci_dependent_modifiedby" />
+  <EntityRelationship Name="organization_dgt_testci_base" />
+  <EntityRelationship Name="organization_dgt_testci_dependent" />
+</EntityRelationships>

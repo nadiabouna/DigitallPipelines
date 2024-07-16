@@ -1,0 +1,7 @@
+{
+    "recommendations": [
+        "ms-vscode.azure-account",
+        "ms-azure-devops.azure-pipelines",
+        "esbenp.prettier-vscode"
+    ]
+}

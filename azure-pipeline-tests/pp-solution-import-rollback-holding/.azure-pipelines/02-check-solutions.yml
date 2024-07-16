@@ -1,0 +1,70 @@
+# Part 02 of test scenario "Rollback holding import"
+# Checks whether the expected solution versions are installed
+
+# No automated trigger; pipeline trigger is used
+trigger: none
+
+resources:
+  repositories:
+    - repository: pipelinetemplates
+      type: github
+      name: DIGITALLNature/DigitallPipelines
+      endpoint: "(TEST CI) DIGITALL Pipelines Test"
+
+  pipelines:
+    - pipeline: import
+      source: (TEST CI) 01 Rollback holding import - import
+      trigger: true
+
+pool:
+  vmImage: ubuntu-latest
+
+variables:
+  - group: "(TEST CI) Test Solution Url"
+
+steps:
+  # Install Power Platform CLI and create auth profile
+  - template: azure-pipeline-templates/pac/install.yml@pipelinetemplates
+  - template: azure-pipeline-templates/pac-auth/create-from-service-connection.yml@pipelinetemplates
+    parameters:
+      serviceConnection: "(TEST CI) Test Solution Conn"
+
+  # Load installed solution versions
+  - template: azure-pipeline-templates/pp-solution-version/generate-installed-solution-list.yml@pipelinetemplates
+    parameters:
+      outputDirectory: $(Agent.TempDirectory)
+
+  # Check specific solution versions
+  - task: PowerShell@2
+    displayName: "Check specific solution versions"
+    inputs:
+      targetType: 'inline'
+      script: |
+        $InstalledSolutionsPath = "$env:InstalledSolutionsPath"
+
+        Write-Host "##[debug]Parse installed solution versions"
+        $InstalledSolutionsJson = Get-Content -Path $InstalledSolutionsPath -Raw
+        if ($env:Debug -eq $True) { Write-Host "##[debug]InstalledSolutionsJson=$InstalledSolutionsJson" }
+        $InstalledSolutionsResponse = $InstalledSolutionsJson | ConvertFrom-Json
+        $InstalledSolutions =  $InstalledSolutionsResponse.Results
+
+        Write-Host "##[debug]Get solution version for test_ci_pp_solution_import_rollback_holding"
+        $HoldingSolution = $InstalledSolutions | Where-Object { $_.SolutionUniqueName -eq "test_ci_pp_solution_import_rollback_holding" }
+        if ($HoldingSolution -eq $null -or "$($HoldingSolution.VersionNumber)" -ne "1.0.0.0") {
+          throw "Solution test_ci_pp_solution_import_rollback_holding should be installed with version 1.0.0.0 but is $($HoldingSolution.VersionNumber)"
+        }
+
+        Write-Host "##[debug]Get solution version for test_ci_pp_solution_import_rollback_holding_Upgrade"
+        $UpgradeSolution = $InstalledSolutions | Where-Object { $_.SolutionUniqueName -eq "test_ci_pp_solution_import_rollback_holding_Upgrade" }
+        if ($UpgradeSolution -ne $null) {
+          throw "Solution test_ci_pp_solution_import_rollback_holding_Upgrade should not be installed"
+        }
+
+        Write-Host "##[debug]Get solution version for test_ci_pp_solution_import_rollback_holding_fail"
+        $TestFailVersion = $InstalledSolutions | Where-Object { $_.SolutionUniqueName -eq "test_ci_pp_solution_import_rollback_holding_fail" }
+        if ($TestFailVersion -ne $null) {
+          throw "Solution test_ci_pp_solution_import_rollback_holding_fail should not be installed"
+        }
+    env:
+      InstalledSolutionsPath: $(Agent.TempDirectory)/installed-solutions.json
+      Debug: $(System.Debug)

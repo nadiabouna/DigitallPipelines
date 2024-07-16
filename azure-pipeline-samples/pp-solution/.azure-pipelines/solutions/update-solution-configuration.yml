@@ -1,0 +1,54 @@
+# Update solution configuration from active carriers
+# Runs on a nightly schedule but scheduled before other regular pipelines might be starting
+
+# No automated trigger
+trigger: none
+
+# Trigger the pipeline automatically every night (at midnight UTC)
+schedules:
+  - cron: '0 0 * * *'
+    displayName: Start midnight solution configuration update
+    branches:
+      include:
+        - main
+    always: true # Trigger even if there were no changes
+
+resources:
+  repositories:
+    # Add a reference to the pipelinetemplates repository where all the templates are located
+    # No need to clone them, the templates can be referenced directly
+    - repository: pipelinetemplates
+      type: github
+      name: DIGITALLNature/DigitallPipelines
+      endpoint: DIGITALL Pipelines Service Connection
+
+      # By default the default branch is used. If this is not the same default between projects
+      # (for most it is main, but for some it still is master) or a different one should be
+      # used, the ref mus be set:
+      # ref: refs/heads/preview
+      # ref: refs/heads/master
+
+# By default use an ubuntu image
+pool:
+  vmImage: ubuntu-latest
+
+parameters:
+  # If changes are found the configuration file will be updated and potentially trigger the export
+  # > If set to true this will add the [skip ci] flag to the commit message
+  # > By default the export pipeline will trigger to any changes to the solution-configuration
+  # > Since the export pipeline by default is running nightly we set default to not trigger export
+  - name: skipExport
+    displayName: Skip export of solutions
+    type: boolean
+    default: true
+
+# Use existing variable groups
+variables:
+  - group: Power Platform Environment Development
+
+# Extend from pipeline template that generates the solution configuration
+extends:
+  template: azure-pipeline-templates/pp-solution-configuration/generate-from-carrier.yml@pipelinetemplates
+  parameters:
+    serviceConnection: Power Platform Service Connection Development
+    skipCI: ${{ parameters.skipExport }}

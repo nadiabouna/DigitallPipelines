@@ -1,0 +1,29 @@
+# Create a new profile with the dgtp tooling
+#
+# Prerequisites:
+# - dgtp tooling installed (e.g. ../dgtp/install*.yml)
+
+parameters:
+  # ----- Required parameters -----
+
+  # The connection string to use for the profile
+  - name: connectionString
+    displayName: ConnectionString to use for profile
+    type: string
+
+  # ----- Optional feature parameters -----
+
+  # The name of the profile to create
+  - name: name
+    displayName: Profile Name
+    type: string
+    default: current
+
+steps:
+  # Create dgtp profile
+  - task: PowerShell@2
+    displayName: Create and Authenticate with dgtp
+    inputs:
+      targetType: inline
+      script: |
+        dgtp profile create "${{ parameters.name }}" "${{ parameters.connectionString }}"

@@ -1,0 +1,347 @@
+# Import solutions in a deploy job
+
+parameters:
+  # ----- Required parameters -----
+
+  # Solution list. Comma separated list that should be set at compile time
+  - name: solutionList
+    displayName: Comma separated list of solutions
+    type: string
+
+  # Solution list in reverse. Comma separated list that should be set at compile time
+  # This is used to rollback in the opposite order
+  - name: solutionListReverse
+    displayName: Comma separated list of solutions in rollback order
+    type: string
+
+  # Environment to deploy to
+  # Friendly name will be used to find variable groups and environments
+  # Unique Name will be used to find config files (e.g. filename.myenvironment.json)
+  # Example:
+  #   friendlyName: My Environment
+  #   uniqueName: myenvironment
+  - name: environment
+    displayName: Environment
+    type: object
+
+  # Service connection to the target environment
+  - name: serviceConnection
+    displayName: Service Connection
+    type: string
+
+  # Name of devops environment used for approvals and checks
+  - name: devOpsEnvironment
+    displayName: DevOps Environment
+    type: string
+
+  # ----- Optional feature parameters -----
+
+  # Force import of solutions with same or lower version
+  # The system won't apply the import but will apply deployment settings
+  - name: forceImport
+    displayName: Force import of solutions with same or lower version
+    type: boolean
+    default: false
+
+  # Automatically roll back if import fails
+  - name: rollbackOnFailure
+    displayName: Automatically roll back if import fails
+    type: boolean
+    default: true
+
+  # ----- Optional predefined parameters -----
+
+  # Type of service connection
+  - name: serviceConnectionType
+    displayName: Service connection type
+    type: string
+    values:
+      - PowerPlatformSPN
+      - PowerPlatformEnvironment
+    default: PowerPlatformSPN
+
+  # Continue on deployment failure
+  - name: continueOnDeploymentFailure
+    displayName: Continue on deployment failure
+    type: boolean
+    default: false
+
+jobs:
+  # Generate list of installed solutions
+  - template: ../pp-solution-version/generate-installed-solution-list-job.yml
+    parameters:
+      serviceConnection: ${{ parameters.serviceConnection }}
+      serviceConnectionType: ${{ parameters.serviceConnectionType }}
+      jobName: ${{ parameters.environment.uniqueName }}_GenerateInstalledSolutionList
+      artifactName: ${{ parameters.environment.uniqueName }}_SolutionList_Installed
+
+  # Deploy solutions
+  - deployment: deploy_${{ parameters.environment.uniqueName }}
+    displayName: Deploy to ${{ parameters.environment.friendlyName }}
+
+    timeoutInMinutes: ${{ coalesce(variables['SolutionConfigTimeout_Deployment'], 0) }}
+
+    environment: ${{ parameters.devOpsEnvironment }}
+
+    dependsOn:
+      - ${{ parameters.environment.uniqueName }}_GenerateInstalledSolutionList
+
+    continueOnError: ${{ parameters.continueOnDeploymentFailure }}
+
+    strategy:
+      runOnce:
+        deploy:
+          steps:
+            # Don't load all artifacts
+            - download: none
+
+            # Load solution files
+            - task: DownloadPipelineArtifact@2
+              displayName: Download solution files
+              inputs:
+                artifact: ${{ parameters.environment.uniqueName }}_Solutions
+                path: $(Pipeline.Workspace)
+
+            # Load local solution versions
+            - task: DownloadPipelineArtifact@2
+              displayName: Download local solution info
+              inputs:
+                artifact: ${{ parameters.environment.uniqueName }}_SolutionList_Local
+                path: $(Pipeline.Workspace)
+
+            # Load installed solution versions
+            - task: DownloadPipelineArtifact@2
+              displayName: Download installed solution info
+              inputs:
+                artifact: ${{ parameters.environment.uniqueName }}_SolutionList_Installed
+                path: $(Pipeline.Workspace)
+
+            # Detect deployment settings file
+            - task: PowerShell@2
+              name: detectDeploymentSettingsFile
+              displayName: 'Detect settings file'
+              inputs:
+                targetType: 'inline'
+                workingDirectory: $(Pipeline.Workspace)
+                script: |
+                  $WorkingDirectory = $env:WorkingDirectory
+
+                  $DeploymentSettingsFileExist = Test-Path -Path "env-conn-settings.json"
+
+                  Write-Host "##vso[task.setvariable variable=DeploymentSettingsFileExist;isoutput=true]$DeploymentSettingsFileExist"
+                  Write-Host "##vso[task.setvariable variable=DeploymentSettingsFile;isoutput=true]$WorkingDirectory/env-conn-settings.json"
+              env:
+                WorkingDirectory: $(Pipeline.Workspace)
+
+            # Install Power Platform CLI
+            - template: ../pac/install.yml
+              parameters:
+                addToPath: false
+
+            # Import solutions
+            - ${{ each solution in split(parameters.solutionList, ',') }}:
+              # Check solution versions
+              - template: ../pp-solution-version/compare-solution-version.yml
+                parameters:
+                  solution: ${{ solution }}
+                  sourceSolutionsPath: $(Pipeline.Workspace)/local-solutions.json
+                  targetSolutionsPath: $(Pipeline.Workspace)/installed-solutions.json
+
+              # Import solution
+              - task: PowerPlatformImportSolution@2.0.52
+                displayName: '${{ solution }}: Import'
+                condition: |
+                  and(
+                    succeeded(),
+                    or(
+                      eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'], 'false'),
+                      eq('${{ parameters.forceImport }}', 'true')
+                    )
+                  )
+                inputs:
+                  authenticationType: ${{ parameters.serviceConnectionType }}
+                  ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+                    PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+                  ${{ else }}:
+                    PowerPlatformSPN: ${{ parameters.serviceConnection }}
+                  SolutionInputFile: $(Pipeline.Workspace)/${{ solution }}.zip
+                  HoldingSolution: $(compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding)
+                  Environment: $(PowerPlatformUrl)
+                  UseDeploymentSettingsFile: $(detectDeploymentSettingsFile.DeploymentSettingsFileExist)
+                  DeploymentSettingsFile: $(detectDeploymentSettingsFile.DeploymentSettingsFile)
+                  MaxAsyncWaitTime: 180
+
+              # Create rollback information
+              - task: PowerShell@2
+                displayName: '${{ solution }}: Track rollback information'
+                condition: and(succeeded(), eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'], 'false'))
+                inputs:
+                  targetType: 'inline'
+                  script: |
+                    $Debug = $env:Debug
+                    $SolutionUniqueName = $env:SolutionUniqueName
+                    $ImportAsHolding = $env:ImportAsHolding
+                    $TargetVersion = $env:TargetVersion
+
+                    if (!(Test-Path -Path "$(Build.ArtifactStagingDirectory)/rollback-instructions")) {
+                      New-Item -Path "$(Build.ArtifactStagingDirectory)/rollback-instructions" -ItemType Directory
+                      Write-Host "##[debug]Created rollback instructions directory"
+                    }
+
+                    $rollbackInstruction = if ($ImportAsHolding -eq $True) {
+                      # If imported as holding rollback would be to uninstall upgrade solution
+                      @{
+                        solutionUniqueName = "$($SolutionUniqueName)_Upgrade"
+                        rollbackType = "Uninstall"
+                      }
+                    } elseif ("$TargetVersion" -eq "") {
+                      # If no holding and no prior version exist just uninstall the installed solution
+                      @{
+                        solutionUniqueName = "$SolutionUniqueName"
+                        rollbackType = "Uninstall"
+                      }
+                    } else {
+                      # If no holding and prior version exist we would need a rollback to a previous version
+                      # There is currently no automated rollback strategy that could handle this
+                      @{
+                        solutionUniqueName = "$SolutionUniqueName"
+                        rollbackType = "Rollback"
+                      }
+                    }
+
+                    $rollbackInstructionJson = $rollbackInstruction | ConvertTo-Json
+                    $rollbackInstructionJson | Out-File -FilePath "$(Build.ArtifactStagingDirectory)/rollback-instructions/$SolutionUniqueName.json"
+                    Write-Host "##vso[task.setvariable variable=RollbackInstructionsExist]true"
+
+                    Write-Host "##[debug]Created rollback instruction at $(Build.ArtifactStagingDirectory)/rollback-instructions/$SolutionUniqueName.json"
+                env:
+                  Debug: $(System.Debug)
+                  SolutionUniqueName: ${{ solution }}
+                  ImportAsHolding: $(compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding)
+                  TargetVersion: $(compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_TargetVersion)
+
+            # Upgrade solutions
+            - ${{ each solution in split(parameters.solutionList, ',') }}:
+              # Upgrade solution
+              - task: PowerPlatformApplySolutionUpgrade@2.0.52
+                displayName: '${{ solution }}: Upgrade'
+                condition: |
+                  and(
+                    succeeded(),
+                    eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding'], 'true'),
+                    or(
+                      eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'], 'false'),
+                      eq(${{ parameters.forceImport }}, 'true')
+                    )
+                  )
+                inputs:
+                  authenticationType: ${{ parameters.serviceConnectionType }}
+                  ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+                    PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+                  ${{ else }}:
+                    PowerPlatformSPN: ${{ parameters.serviceConnection }}
+                  SolutionName: ${{ solution }}
+                  Environment: $(PowerPlatformUrl)
+                  MaxAsyncWaitTime: 180
+
+              # Update rollback information
+              - task: PowerShell@2
+                displayName: '${{ solution }}: Track rollback information'
+                condition: and(succeeded(), eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_ImportAsHolding'], 'true'), eq(variables['compareSolutionVersions_${{ solution }}.SolutionConfig_${{ solution }}_IsUpToDate'], 'false'))
+                inputs:
+                  targetType: inline
+                  script: |
+                    $Debug = $env:Debug
+                    $SolutionUniqueName = $env:SolutionUniqueName
+
+                    if (!(Test-Path -Path "$(Build.ArtifactStagingDirectory)/rollback-instructions")) {
+                      New-Item -Path "$(Build.ArtifactStagingDirectory)/rollback-instructions" -ItemType Directory
+                      Write-Host "##[debug]Created rollback instructions directory"
+                    }
+
+                    $rollbackInstruction = @{
+                      solutionUniqueName = "$SolutionUniqueName"
+                      rollbackType = "Rollback"
+                    }
+
+                    $rollbackInstructionJson = $rollbackInstruction | ConvertTo-Json
+                    $rollbackInstructionJson | Out-File -FilePath "$(Build.ArtifactStagingDirectory)/rollback-instructions/$SolutionUniqueName.json"
+                    Write-Host "##vso[task.setvariable variable=RollbackInstructionsExist]true"
+
+                    if ($Debug -eq "true") {
+                      Write-Host "##[debug]$rollbackInstructionJson"
+                    }
+                env:
+                  Debug: $(System.Debug)
+                  SolutionUniqueName: ${{ solution }}
+
+            # Publish rollback information as artifact
+            - task: PublishPipelineArtifact@1
+              displayName: Publish rollback instructions
+              condition: and(failed(), eq(variables['RollbackInstructionsExist'], 'true'))
+              inputs:
+                artifactName: ${{ parameters.environment.uniqueName }}_Solutions_RollbackInstructions
+                targetPath: $(Build.ArtifactStagingDirectory)/rollback-instructions
+
+        ${{ if eq(parameters.rollbackOnFailure, 'true') }}:
+          on:
+            failure:
+              steps:
+                # Download rollback instructions
+                - task: DownloadPipelineArtifact@2
+                  displayName: 'Download rollback instructions'
+                  inputs:
+                    artifact: ${{ parameters.environment.uniqueName }}_Solutions_RollbackInstructions
+                    path: '$(Pipeline.Workspace)/rollback-instructions'
+
+                # Install Power Platform CLI
+                - template: ../pac/install.yml
+
+                # Uninstall already installed solutions
+                - ${{ each solution in split(parameters.solutionListReverse, ',') }}:
+                  # Read rollback information
+                  - task: PowerShell@2
+                    displayName: '${{ solution }}: Read rollback information'
+                    inputs:
+                      targetType: 'inline'
+                      script: |
+                        $Debug = $env:Debug
+                        $SolutionUniqueName = $env:SolutionUniqueName
+
+                        if (Test-Path -Path "$(Pipeline.Workspace)/rollback-instructions/$SolutionUniqueName.json") {
+                          $rollbackInstructionJson = Get-Content -Path "$(Pipeline.Workspace)/rollback-instructions/$SolutionUniqueName.json"
+                          $rollbackInstruction = $rollbackInstructionJson | ConvertFrom-Json
+
+                          if ($Debug -eq $True) {
+                            Write-Host "##[debug]$rollbackInstructionJson"
+                          }
+
+                          Write-Host "##[debug]Rollback Type: $($rollbackInstruction.rollbackType)"
+                          Write-Host "##[debug]Rollback Solution: $($rollbackInstruction.solutionUniqueName)"
+                          Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_Rollback_Type]$($rollbackInstruction.rollbackType)"
+                          Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_Rollback_Solution]$($rollbackInstruction.solutionUniqueName)"
+
+                          if ("$($rollbackInstruction.rollbackType)" -ne "Uninstall") {
+                            Write-Host "##vso[task.logissue type=warning]No known rollback possible"
+                          }
+                        } else {
+                          Write-Host "##[debug]No rollback information available"
+
+                          Write-Host "##vso[task.setvariable variable=SolutionConfig_$($SolutionUniqueName)_Rollback_Type]None"
+                        }
+                    env:
+                      Debug: $(System.Debug)
+                      SolutionUniqueName: ${{ solution }}
+
+                  # Uninstall solution
+                  - task: PowerPlatformDeleteSolution@2.0.52
+                    displayName: '${{ solution }}: Uninstall'
+                    condition: and(succeeded(), eq(variables['SolutionConfig_${{ solution }}_Rollback_Type'], 'Uninstall'))
+                    inputs:
+                      authenticationType: ${{ parameters.serviceConnectionType }}
+                      ${{ if eq(parameters.serviceConnectionType, 'PowerPlatformEnvironment') }}:
+                        PowerPlatformEnvironment: ${{ parameters.serviceConnection }}
+                      ${{ else }}:
+                        PowerPlatformSPN: ${{ parameters.serviceConnection }}
+                      SolutionName: $(SolutionConfig_${{ solution }}_Rollback_Solution)
+                      Environment: $(PowerPlatformUrl)

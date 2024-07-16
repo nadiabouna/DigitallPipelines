@@ -1,0 +1,13 @@
+variables:
+  # MySolution
+  SolutionConfig_MySolution_UniqueName: MySolution
+  SolutionConfig_MySolution_ImportManaged: true
+  SolutionConfig_MySolution_ImportOrder: 1
+
+  # MyOtherSolution
+  SolutionConfig_MyOtherSolution_UniqueName: MyOtherSolution
+  SolutionConfig_MyOtherSolution_ImportManaged: true
+  SolutionConfig_MyOtherSolution_ImportOrder: 2
+
+  SolutionConfigList: MySolution,MyOtherSolution
+  SolutionConfigListReverse: MyOtherSolution,MySolution

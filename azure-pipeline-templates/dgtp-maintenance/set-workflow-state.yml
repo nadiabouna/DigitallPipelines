@@ -1,0 +1,90 @@
+# Update workflows (modern flows) to the correct state and owner
+#
+# Prerequisites:
+# - dgtp tooling installed (e.g. ../dgtp/install*.yml)
+# - dgtp connection string 'dgtp:xrm:connection' available
+# - config file available
+
+parameters:
+  # ----- Optional parameters -----
+
+  # Path to config to use
+  # If not set will look for following paths:
+  # - $(Build.Repository.LocalPath)/deployment-settings/set-workflow-state/
+  #   > 1. workflow-states.[environment.uniqueName].json
+  #   > 2. workflow-states.json
+  - name: config
+    displayName: Path to config file
+    type: string
+    default: ''
+
+  # Name of unique environment
+  # Used to find matching config file
+  - name: environmentUniqueName
+    displayName: Environment unique name
+    type: string
+    default: ''
+
+steps:
+  # Try and look for config file
+  - task: PowerShell@2
+    name: setWorkflowState
+    displayName: Looking for config file
+    inputs:
+      targetType: inline
+      script: |
+        $Debug = $env:Debug
+        $ConfigFilePath = $env:ConfigFilePath
+        $EnvironmentUniqueName = $env:EnvironmentUniqueName
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]ConfigFilePath=$ConfigFilePath"
+          Write-Host "##[debug]EnvironmentUniqueName=$EnvironmentUniqueName"
+        }
+
+        if ("$ConfigFilePath" -ne "") {
+          Write-Host "##[debug]Using explicit config file path $ConfigFilePath"
+        } else {
+          $ConfigFilePath = "$(Build.Repository.LocalPath)/deployment-settings/set-workflow-state/workflow-states.$EnvironmentUniqueName.json"
+          Write-Host "##[debug]Config file path is not set, trying environment default $ConfigFilePath"
+
+          if (Test-Path -Path "$ConfigFilePath") {
+            Write-Host "##[debug]Found config file at $ConfigFilePath"
+          } else {
+            $ConfigFilePath = "$(Build.Repository.LocalPath)/deployment-settings/set-workflow-state/workflow-states.json"
+            Write-Host "##[debug]Config file do not exist on environment level. Trying general default $ConfigFilePath"
+
+            if (Test-Path -Path "$ConfigFilePath") {
+              Write-Host "##[debug]Found config file at $ConfigFilePath"
+            } else {
+              Write-Host "##[warning]No config file found"
+              return
+            }
+          }
+        }
+
+        Write-Host "##vso[task.setvariable variable=ConfigFilePath;isoutput=true]$ConfigFilePath"
+    env:
+      Debug: $(System.Debug)
+      ConfigFilePath: ${{ parameters.config }}
+      EnvironmentUniqueName: ${{ parameters.environmentUniqueName }}
+
+  # Execute dgtp
+  - task: PowerShell@2
+    displayName: Set workflow states
+    condition: and(succeeded(), ne(variables['setWorkflowState.ConfigFilePath'], ''))
+    inputs:
+      targetType: inline
+      script: |
+        $Debug = $env:Debug
+        $ConfigFilePath = $env:ConfigFilePath
+
+        if ($Debug -eq $True) {
+          Write-Host "##[debug]ConfigFilePath=$ConfigFilePath"
+        }
+
+        dgtp maintenance workflowstate --config "$ConfigFilePath"
+    env:
+      Debug: $(System.Debug)
+      dgtp:xrm:connection: $(dgtp:xrm:connection)
+      ConfigFilePath: $(setWorkflowState.ConfigFilePath)
