@@ -1,3 +1,0 @@
-variables:
-  SolutionConfigList: test_ci_pp_solution_import_rollback_holding,test_ci_pp_solution_import_rollback_holding_fail
-  SolutionConfigListReverse: test_ci_pp_solution_import_rollback_holding_fail,test_ci_pp_solution_import_rollback_holding

@@ -1,3 +1,0 @@
-variables:
-  SolutionConfigList: test_ci_pp_solution_import_rollback_first_empty,test_ci_pp_solution_import_rollback_first_fail
-  SolutionConfigListReverse: test_ci_pp_solution_import_rollback_first_fail,test_ci_pp_solution_import_rollback_first_empty

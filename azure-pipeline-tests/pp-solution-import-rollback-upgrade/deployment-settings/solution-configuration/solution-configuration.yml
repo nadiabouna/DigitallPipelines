@@ -1,3 +1,0 @@
-variables:
-  SolutionConfigList: rollback_upgraded,rollback_upgrade_fail
-  SolutionConfigListReverse: rollback_upgrade_fail,rollback_upgraded
