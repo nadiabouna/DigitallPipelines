@@ -13,7 +13,7 @@ parameters:
 
 steps:
   # Install Power Platform Build Tools
-  - task: PowerPlatformToolInstaller@2.0.71
+  - task: PowerPlatformToolInstaller@2.0.74
     displayName: Install Power Platform Tools
 
   # Make available in path depending on OS

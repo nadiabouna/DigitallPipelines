@@ -55,7 +55,7 @@ steps:
       addToPath: false
 
   # Download website content
-  - task: PowerPlatformDownloadPaportal@2.0.71
+  - task: PowerPlatformDownloadPaportal@2.0.74
     displayName: Download portal
     inputs:
       authenticationType: ${{ parameters.serviceConnectionType }}
